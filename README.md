@@ -30,6 +30,14 @@ Creator earnings accrue per token. Anyone can trigger the payout, and the money 
 | `NullToken.sol` | Plain fixed-supply ERC20: no owner, no mint, no transfer tax |
 | `NullSwap.sol` | Constant-product pools for graduated tokens. Liquidity is locked and fees match the curve. |
 
+## Deployments
+
+| Network | NullLaunchpad | NullSwap | Owner |
+|---|---|---|---|
+| Base (8453) | [`0x625Cd5Bbf70F991b06CF7D80f845A6d38bDD4859`](https://basescan.org/address/0x625Cd5Bbf70F991b06CF7D80f845A6d38bDD4859) | [`0x65216Ec659A2F8e696b949E70760b534a2641cA6`](https://basescan.org/address/0x65216Ec659A2F8e696b949E70760b534a2641cA6) | `0xf20949dE03Fbd6EeC56eE4d674759D2e5DA02f55` |
+
+Base parameters: virtual reserve 1.68 ETH (graduates at ~4.19 ETH), opening tax 80% → 0 over 15 s, launch fee 0, migration fee 0.01 ETH.
+
 ## Zero network
 
 | | Testnet | Mainnet |
