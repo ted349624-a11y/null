@@ -51,7 +51,18 @@ async function owner() {
   } catch { return ""; }
 }
 
+async function diag() {
+  const probe = async (name, fn) => { const t = Date.now(); try { return [name, "ok", await fn(), Date.now() - t]; } catch (e) { return [name, "fail", String(e && (e.message || e)).slice(0, 200), Date.now() - t]; } };
+  return Promise.all([
+    probe("blockscout-logs", async () => { const r = await fetch(`${P.TESTNET.blockscout}?module=logs&action=getLogs&fromBlock=${DEPLOY_BLOCK}&toBlock=latest&address=${P.TESTNET.launchpad}&topic0=${LAUNCHED}`); const t = await r.text(); return r.status + " " + t.slice(0, 160); }),
+    probe("blockscout-txlist", async () => { const r = await fetch(`${P.TESTNET.blockscout}?module=account&action=txlist&address=${P.TESTNET.launchpad}&sort=asc&page=1&offset=1`); const t = await r.text(); return r.status + " " + t.slice(0, 120); }),
+    probe("redis", async () => String(await P.redis(["HLEN", "cfund"]))),
+    probe("owner", owner),
+  ]);
+}
+
 module.exports = P.handler(async (req, res) => {
+  if (new URL(req.url, "http://x").searchParams.get("diag") === "1") return P.send(res, 200, { diag: await diag() });
   const deadline = Date.now() + 15000; // answer within the time limit; unfinished lookups continue on the next call
   let all;
   try { all = await launches(); } catch { throw P.fail(502, "Indexer unavailable, try again shortly."); }
