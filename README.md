@@ -1,22 +1,24 @@
 # null
 
-**Permissionless token launchpad on LayerZero Zero.** Fair launch on a bonding curve, automatic graduation into a pool whose liquidity is locked forever.
+**Permissionless token launchpad, live on Base.** Fair launch on a bonding curve, automatic graduation into Uniswap V2 with liquidity locked forever. Built to move to LayerZero Zero.
 
 ## How it works
 
 1. **Launch:** One transaction deploys a fixed-supply ERC20 (1,000,000,000) and its bonding curve. No tokens are reserved for the creator. The creator can make an optional opening buy in the same transaction, and that buy is exempt from the opening tax.
 2. **Trade the curve:** Pricing is constant product over virtual reserves (1.68 native and 1B tokens), so the opening price is 0.00000000168 per token. Buying pushes the price up and selling pushes it down.
 3. **Graduate:** The curve graduates when its 714M tokens (71.4%) sell out, at roughly 4.19 native raised. The final buy fills only what is left and refunds the rest in the same transaction.
-4. **Trade the pool:** All the native raised (minus the migration fee), plus about 20.4% of supply, seeds a NullSwap pool at the curve's final price. The remaining ~8.2% is locked forever. Pool liquidity has no withdraw function, so nobody, including the creator and the platform, can remove it.
+4. **Trade on Uniswap:** All the native raised (minus the migration fee, capped at 10%), plus about 20.4% of supply, seeds the token/WETH Uniswap V2 pair at the curve's final price. The LP tokens are sent to `0x…dEaD`, so nobody, including the creator and the platform, can ever remove the liquidity. The remaining ~8.2% of supply is locked forever.
+
+   Until graduation, the token refuses transfers into its Uniswap pair, so nobody can pre-seed the pool at a manipulated price. WETH donated to the pair before graduation just becomes part of the locked liquidity.
 
 ### Fees
 
 | Fee | Rate | Recipient |
 |---|---|---|
-| Trade fee (every buy and sell, curve and pool) | 1% | 30% platform / 70% creator |
+| Trade fee (every buy and sell on the curve) | 1% | 30% platform / 70% creator |
 | Creator tax (optional, fixed at launch) | 0–9% (trade fee + tax ≤ 10%) | 100% creator |
 | Opening tax (buys only, anti-snipe) | 80% at launch, decays linearly to 0 over 15 s | joins the trade fee (30/70) |
-| Pool LP fee | none | n/a |
+| After graduation | Uniswap V2 0.3% LP fee | stays in the locked pool |
 | Launch fee | owner-set (0 on testnet) | platform |
 | Migration fee | 0.01 native at graduation | platform |
 
@@ -27,16 +29,19 @@ Creator earnings accrue per token. Anyone can trigger the payout, and the money 
 | Contract | Role |
 |---|---|
 | `NullLaunchpad.sol` | Factory, bonding curves, fees, opening tax, graduation, and frontend views (`getLaunches`, `getLaunch`) |
-| `NullToken.sol` | Plain fixed-supply ERC20: no owner, no mint, no transfer tax |
-| `NullSwap.sol` | Constant-product pools for graduated tokens. Liquidity is locked and fees match the curve. |
+| `NullToken.sol` | Plain fixed-supply ERC20: no owner, no mint, no transfer tax. Blocks transfers into its Uniswap pair until graduation. |
 
 ## Deployments
 
-| Network | NullLaunchpad | NullSwap | Owner |
-|---|---|---|---|
-| Base (8453) | [`0x625Cd5Bbf70F991b06CF7D80f845A6d38bDD4859`](https://basescan.org/address/0x625Cd5Bbf70F991b06CF7D80f845A6d38bDD4859) | [`0x65216Ec659A2F8e696b949E70760b534a2641cA6`](https://basescan.org/address/0x65216Ec659A2F8e696b949E70760b534a2641cA6) | `0xf20949dE03Fbd6EeC56eE4d674759D2e5DA02f55` |
+| Network | NullLaunchpad | Owner |
+|---|---|---|
+| Base (8453) | [`0x4dE50B493d3CE956222D4c09AFF6bd3b16c3E77a`](https://basescan.org/address/0x4dE50B493d3CE956222D4c09AFF6bd3b16c3E77a) | `0xf20949dE03Fbd6EeC56eE4d674759D2e5DA02f55` |
 
-Base parameters: virtual reserve 1.68 ETH (graduates at ~4.19 ETH), opening tax 80% → 0 over 15 s, launch fee 0, migration fee 0.01 ETH.
+Base parameters for new launches: virtual reserve 1.68 ETH (graduates at ~4.19 ETH), opening tax 80% → 0 over 15 s, launch fee 0, migration fee 0.01 ETH. The owner can change the virtual reserve, launch fee and migration fee from the site's **Admin** panel; changes apply to new launches only.
+
+Graduates into Uniswap V2 on Base (factory `0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6`, router `0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24`). Live-tested on 2026-11-25: a test token launched at a ~$3 threshold graduated into pair [`0xB0D0f1EdCfff1Ce173467A960547110EFe82F533`](https://basescan.org/address/0xB0D0f1EdCfff1Ce173467A960547110EFe82F533) with its LP burned, then traded on Uniswap.
+
+An earlier Base deployment (`0x625Cd5Bb…4859`, own AMM instead of Uniswap) is retired.
 
 ## Zero network
 
@@ -50,7 +55,7 @@ Base parameters: virtual reserve 1.68 ETH (graduates at ~4.19 ETH), opening tax 
 
 ```bash
 npm install
-npm test                    # 17 tests (offline: USE_LOCAL_SOLC=1 npm test)
+npm test                    # 15 tests against the real Uniswap V2 bytecode (offline: USE_LOCAL_SOLC=1 npm test)
 ```
 
 ### Deploy to Zero testnet
@@ -73,7 +78,7 @@ curl -s -X POST https://testnet.zero.layerzero.network -H 'content-type: applica
 **Verify the live deployment:**
 ```bash
 npm run smoke:testnet               # launch, opening tax decay, buy, sell, events, creator fees
-GRADUATE=1 npm run smoke:testnet    # also sells out the curve and trades on the pool
+GRADUATE=1 npm run smoke:testnet    # also graduates into Uniswap V2 and trades there
 ```
 Testnet ZRO is scarce. To test graduation cheaply, deploy with a smaller curve, for example `VIRTUAL_NATIVE=0.0168`, which graduates at about 0.042 ZRO.
 
