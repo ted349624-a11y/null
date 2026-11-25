@@ -61,7 +61,7 @@
 <body>
 <header>
   <div class="logo" onclick="location.hash=''">null<b>_</b></div>
-  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="openLaunch">+ Launch</button><button id="connect" class="sm">Connect wallet</button></div>
+  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="openLaunch">+ Launch</button><button id="connect" class="sm">Connect wallet</button></div>
 </header>
 
 <main>
@@ -98,6 +98,24 @@
     <div style="margin-top:14px"><button id="launchBtn" style="width:100%">Launch token</button></div>
   </div>
 </div>
+<div class="modal" id="adminModal">
+  <div class="card">
+    <div class="row sp"><h2 style="margin:0">Admin</h2><button class="ghost sm" onclick="$('adminModal').style.display='none'">✕</button></div>
+    <div class="note" style="margin-top:12px">Changes apply to <b>new launches only</b>. Tokens that already launched keep their parameters.</div>
+    <label>Virtual reserve (<span class="sym"></span>)</label>
+    <div class="row"><input id="aVirtual" type="number" min="0" step="any" /><button class="ghost sm" id="aVirtualSave">Save</button></div>
+    <div class="mut" id="aVirtualHint" style="margin-top:4px"></div>
+    <div class="pills" style="margin-top:6px"><button class="ghost" data-pv="0.00063">~$3 test</button><button class="ghost" data-pv="1.68">Standard (1.68)</button></div>
+    <label>Launch fee (<span class="sym"></span>)</label>
+    <div class="row"><input id="aLaunchFee" type="number" min="0" step="any" /><button class="ghost sm" id="aLaunchFeeSave">Save</button></div>
+    <label>Migration fee (<span class="sym"></span>, max 10% of the raise)</label>
+    <div class="row"><input id="aMigFee" type="number" min="0" step="any" /><button class="ghost sm" id="aMigFeeSave">Save</button></div>
+    <label>Platform fee recipient</label>
+    <div class="row"><input id="aRecipient" class="mono" /><button class="ghost sm" id="aRecipientSave">Save</button></div>
+    <label>Platform fees</label>
+    <div class="row sp"><span class="mut" id="aFees"></span><button class="ghost sm" id="aWithdraw">Withdraw</button></div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script src="./ethers.umd.min.js"></script>
@@ -114,14 +132,14 @@ document.querySelectorAll(".sym").forEach(e => e.textContent = SYM);
 
 const rp = new ethers.JsonRpcProvider(CFG.rpcUrl, CFG.chainId, { staticNetwork: true });
 const padR = new ethers.Contract(CFG.launchpad, ABI.launchpad, rp);
-const swapR = new ethers.Contract(CFG.swap, ABI.swap, rp);
+const routerR = CFG.uniswapRouter ? new ethers.Contract(CFG.uniswapRouter, ABI.router, rp) : null;
 let signer = null, account = null, slippageBps = 300n, sortBy = "new", tickTimer = null;
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const safeUrl = (u) => { u = String(u || "").trim(); if (u.startsWith("ipfs://")) return "https://ipfs.io/ipfs/" + u.slice(7); return /^https?:\/\//i.test(u) ? u : ""; };
 const num = (v, d = 4) => Number(ethers.formatEther(v)).toLocaleString("en-US", { maximumFractionDigits: d });
-const compact = (v) => Number(ethers.formatEther(v)).toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 });
+const compact = (v) => { const n = Number(ethers.formatEther(v)); return n > 0 && n < 1 ? n.toLocaleString("en-US", { maximumSignificantDigits: 3 }) : n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 }); };
 const priceStr = (v) => { const n = Number(ethers.formatEther(v)); return n === 0 ? "0" : n < 0.0001 ? n.toExponential(3) : n.toLocaleString("en-US", { maximumSignificantDigits: 5 }); };
 const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 const addrLink = (a) => CFG.explorer ? `<a class="mono" href="${CFG.explorer}/address/${a}" target="_blank" rel="noopener">${short(a)}</a>` : `<span class="mono">${short(a)}</span>`;
@@ -132,7 +150,7 @@ function toast(m, ms = 4500) { const t = $("toast"); t.textContent = m; t.style.
 function errMsg(e) {
   const raw = e?.shortMessage || e?.reason || e?.info?.error?.message || e?.message || String(e);
   const name = e?.revert?.name || (raw.match(/reverted with custom error '(\w+)/) || [])[1];
-  const map = { Slippage: "Price moved more than your slippage. Try again or raise slippage.", Graduated_: "This token has graduated — trading moved to the pool.", InsufficientLaunchFee: "Launch fee not covered.", BadParams: "Invalid input (check lengths and creator tax).", NotCreator: "Only the creator can do this.", Expired: "Transaction expired." };
+  const map = { Slippage: "Price moved more than your slippage. Try again or raise slippage.", Graduated_: "This token has graduated — it now trades on Uniswap.", PoolLockedUntilGraduation: "This token can't be added to Uniswap until it graduates.", InsufficientLaunchFee: "Launch fee not covered.", BadParams: "Invalid input (check lengths and creator tax).", NotCreator: "Only the creator can do this.", Expired: "Transaction expired." };
   return map[name] || (e?.code === "ACTION_REJECTED" ? "Rejected in wallet." : raw);
 }
 
@@ -150,6 +168,7 @@ async function connect() {
   signer = await new ethers.BrowserProvider(window.ethereum).getSigner();
   account = await signer.getAddress();
   $("connect").textContent = short(account);
+  refreshAdminButton();
 }
 async function need() { if (!signer) await connect(); if (!signer) throw new Error("Wallet not connected"); return signer; }
 window.ethereum?.on?.("accountsChanged", () => { signer = null; account = null; $("connect").textContent = "Connect wallet"; connect().then(route).catch(() => {}); });
@@ -185,8 +204,8 @@ async function openLaunch() {
   $("launchModal").style.display = "flex";
   const [fee, target] = await Promise.all([padR.launchFee(), padR.graduationTarget()]);
   launchFee = fee;
-  $("launchInfo").innerHTML = `Launch fee: <b>${num(fee)} ${SYM}</b> · Graduates at: <b>~${num(target, 2)} ${SYM}</b> raised<br>
-    Supply 1,000,000,000 · 71.4% sold on the curve · ~20.4% seeds a locked pool · ~8.2% locked forever.<br>
+  $("launchInfo").innerHTML = `Launch fee: <b>${num(fee)} ${SYM}</b> · Graduates at: <b>~${num(target, 6)} ${SYM}</b> raised<br>
+    Supply 1,000,000,000 · 71.4% sold on the curve · ~20.4% + all raised ${SYM} seed a Uniswap pool (LP burned) · ~8.2% locked forever.<br>
     Every trade pays 1% (30% platform / 70% you) + your creator tax. Name, ticker and tax are fixed after launch.`;
 }
 function closeLaunch() { $("launchModal").style.display = "none"; }
@@ -230,14 +249,11 @@ async function fetchTrades(prov, token, graduated) {
   const latest = await prov.getBlockNumber();
   const floor = Math.max(CFG.deployBlock || 0, latest - 200000);
   const CHUNK = 9000, rows = [];
-  const tradeTopic = padR.interface.getEvent("Trade").topicHash, swapTopic = swapR.interface.getEvent("Swap").topicHash, tok = ethers.zeroPadValue(token, 32);
+  const tradeTopic = padR.interface.getEvent("Trade").topicHash, tok = ethers.zeroPadValue(token, 32);
   for (let to = latest; to >= floor && rows.length < 25; to -= CHUNK + 1) {
     const from = Math.max(floor, to - CHUNK);
-    const [c, s] = await Promise.all([
-      prov.getLogs({ address: CFG.launchpad, topics: [tradeTopic, tok], fromBlock: from, toBlock: to }),
-      graduated ? prov.getLogs({ address: CFG.swap, topics: [swapTopic, tok], fromBlock: from, toBlock: to }) : [],
-    ]);
-    rows.push(...c.map(l => ({ l, e: padR.interface.parseLog(l), venue: "curve" })), ...s.map(l => ({ l, e: swapR.interface.parseLog(l), venue: "pool" })));
+    const c = await prov.getLogs({ address: CFG.launchpad, topics: [tradeTopic, tok], fromBlock: from, toBlock: to });
+    rows.push(...c.map(l => ({ l, e: padR.interface.parseLog(l), venue: "curve" })));
   }
   return rows;
 }
@@ -248,8 +264,9 @@ async function recentTrades(token, graduated) {
   }
   if (!rows) return '<div class="mut">Trade history is unavailable right now. Connect your wallet to load it through your wallet\'s RPC.</div>';
   rows.sort((a, b) => b.l.blockNumber - a.l.blockNumber || b.l.index - a.l.index);
-  if (!rows.length) return '<div class="mut">No trades yet.</div>';
-  return `<table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${rows.slice(0, 25).map(({ l, e, venue }) =>
+  const dex = graduated && CFG.links?.dexscreener ? `<div class="mut" style="margin-bottom:8px">Bonding-curve trades below. Uniswap trades: <a href="${CFG.links.dexscreener}${token}" target="_blank" rel="noopener">DexScreener ↗</a></div>` : "";
+  if (!rows.length) return dex + '<div class="mut">No trades yet.</div>';
+  return dex + `<table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${rows.slice(0, 25).map(({ l, e, venue }) =>
     `<tr><td>${addrLink(e.args.trader)}</td><td class="${e.args.isBuy ? "g" : "r"}">${e.args.isBuy ? "Buy" : "Sell"}</td><td>${num(e.args.nativeAmount, 6)}</td><td>${compact(e.args.tokenAmount)}</td><td class="mut">${venue}</td><td>${txLink(l.transactionHash)}</td></tr>`).join("")}</table>`;
 }
 
@@ -258,10 +275,10 @@ async function showDetail(a) {
   $("home").style.display = "none"; $("detail").style.display = "block";
   const v = await padR.getLaunch(a), l = v.launch;
   const tokR = new ethers.Contract(a, ABI.token, rp);
-  const [bal, nBal, target, poolFees] = await Promise.all([
-    account ? tokR.balanceOf(account) : 0n, account ? rp.getBalance(account) : 0n, padR.graduationTarget(),
-    l.graduated ? swapR.creatorFeesAccrued(a) : 0n,
-  ]);
+  const [bal, nBal] = await Promise.all([account ? tokR.balanceOf(account) : 0n, account ? rp.getBalance(account) : 0n]);
+  const target = v.graduationTarget;
+  const uniLink = CFG.links?.uniswap ? `<a href="${CFG.links.uniswap}${a}" target="_blank" rel="noopener">Uniswap ↗</a>` : "";
+  const dexLink = CFG.links?.dexscreener ? `<a href="${CFG.links.dexscreener}${a}" target="_blank" rel="noopener">DexScreener ↗</a>` : "";
   const curveFees = await padR.creatorFeesAccrued(a);
   const mcap = v.price * 1_000_000_000n;
   const isCreator = account && account.toLowerCase() === l.creator.toLowerCase();
@@ -276,7 +293,7 @@ async function showDetail(a) {
         <div class="row" style="align-items:flex-start">${avatar(v.meta, v.symbol, true)}
           <div class="min0" style="flex:1">
             <div class="row wrap"><h2 style="margin:0">${esc(v.name)}</h2><span class="mut mono">$${esc(v.symbol)}</span>
-              ${l.graduated ? '<span class="badge">graduated · trading on pool</span>' : ""}</div>
+              ${l.graduated ? '<span class="badge">graduated · on Uniswap</span>' : ""}</div>
             <div class="mut mono" style="word-break:break-all">${a} <a href="#" id="copy">copy</a></div>
             <div style="margin-top:6px">${esc(v.meta.description)}</div>
             <div style="margin-top:6px" class="mut">${links}</div>
@@ -284,12 +301,13 @@ async function showDetail(a) {
         <div class="stats">
           <div class="stat"><div class="mut">Price</div><div class="v mono">${priceStr(v.price)}</div></div>
           <div class="stat"><div class="mut">Market cap</div><div class="v">${compact(mcap)} ${SYM}</div></div>
-          <div class="stat"><div class="mut">Trade fee</div><div class="v">${feeBps / 100}%</div></div>
+          <div class="stat"><div class="mut">Trade fee</div><div class="v">${l.graduated ? "0.3% LP" : feeBps / 100 + "%"}</div></div>
         </div>
-        ${l.graduated ? `<div class="mut">Liquidity is permanently locked in the null pool.</div>` : `
+        ${l.graduated ? `<div class="mut">Graduated to a Uniswap V2 pool. The LP tokens were burned, so the liquidity is locked forever. ${[uniLink, dexLink].filter(Boolean).join(" · ")}</div>
+        <div class="mut mono" style="margin-top:4px;word-break:break-all">pair ${addrLink(v.pair)}</div>` : `
         <div class="row sp"><b>Bonding curve</b><span class="mono">${(Number(v.progressBps) / 100).toFixed(2)}%</span></div>
         <div class="bar" style="height:12px"><i style="width:${Number(v.progressBps) / 100}%"></i></div>
-        <div class="mut" style="margin-top:6px">${num(l.realNative, 3)} / ~${num(target, 2)} ${SYM} raised. When the curve sells out, liquidity migrates to a locked pool automatically.</div>`}
+        <div class="mut" style="margin-top:6px">${num(l.realNative, 6)} / ~${num(target, 6)} ${SYM} raised. When the curve sells out, liquidity moves to Uniswap and is locked forever.</div>`}
         <div class="mut" style="margin-top:10px">Creator ${addrLink(l.creator)} · creator tax ${Number(l.creatorTaxBps) / 100}% · fee wallet ${addrLink(l.feeWallet)}</div>
       </div>
       <div class="card" style="margin-top:14px"><b>Recent trades</b><div id="trades" style="margin-top:8px" class="mut">Loading…</div></div>
@@ -308,8 +326,8 @@ async function showDetail(a) {
       </div>
       <div class="card" style="margin-top:14px">
         <b>Creator earnings</b>
-        <div class="mut" style="margin:6px 0">Unclaimed: <b style="color:var(--txt)">${num(curveFees + poolFees, 6)} ${SYM}</b> → paid to ${addrLink(l.feeWallet)}. Anyone can trigger the payout.</div>
-        <button class="ghost sm" id="claim" ${curveFees + poolFees === 0n ? "disabled" : ""}>Send to fee wallet</button>
+        <div class="mut" style="margin:6px 0">Unclaimed: <b style="color:var(--txt)">${num(curveFees, 6)} ${SYM}</b> → paid to ${addrLink(l.feeWallet)}. Anyone can trigger the payout.${l.graduated ? " Earnings come from bonding-curve trades; on Uniswap the 0.3% fee stays in the locked pool." : ""}</div>
+        <button class="ghost sm" id="claim" ${curveFees === 0n ? "disabled" : ""}>Send to fee wallet</button>
         ${isCreator ? `<label>Change fee wallet</label><div class="row"><input id="newWallet" class="mono" placeholder="0x…" /><button class="ghost sm" id="setWallet">Save</button></div>` : ""}
       </div>
     </div>
@@ -326,8 +344,8 @@ async function showDetail(a) {
   });
 
   const quote = async (x) => {
-    if (mode === "buy") return l.graduated ? (await swapR.quoteBuy(a, x))[0] : await padR.quoteBuy(a, x);
-    return l.graduated ? (await swapR.quoteSell(a, x))[0] : await padR.quoteSell(a, x);
+    if (l.graduated) return (await routerR.getAmountsOut(x, mode === "buy" ? [CFG.weth, a] : [a, CFG.weth]))[1];
+    return mode === "buy" ? await padR.quoteBuy(a, x) : await padR.quoteSell(a, x);
   };
   const updQuote = async () => {
     try { const x = ethers.parseEther($("amt").value || "0"); if (x === 0n) return $("quote").textContent = "";
@@ -351,13 +369,18 @@ async function showDetail(a) {
       const s = await need();
       const x = ethers.parseEther($("amt").value || "0"); if (x === 0n) return toast("Enter an amount.");
       const q = await quote(x); const min = q * (BPS - slippageBps) / BPS;
-      const target = l.graduated ? new ethers.Contract(CFG.swap, ABI.swap, s) : new ethers.Contract(CFG.launchpad, ABI.launchpad, s);
+      const target = l.graduated ? new ethers.Contract(CFG.uniswapRouter, ABI.router, s) : new ethers.Contract(CFG.launchpad, ABI.launchpad, s);
       $("trade").disabled = true;
-      if (mode === "buy") { toast("Confirm in your wallet…", 60000); await (await target.buy(a, min, deadline(), { value: x })).wait(); }
-      else {
+      if (mode === "buy") {
+        toast("Confirm in your wallet…", 60000);
+        const tx = l.graduated ? await target.swapExactETHForTokens(min, [CFG.weth, a], account, deadline(), { value: x }) : await target.buy(a, min, deadline(), { value: x });
+        await tx.wait();
+      } else {
         const tw = new ethers.Contract(a, ABI.token, s), spender = await target.getAddress();
         if ((await tw.allowance(account, spender)) < x) { toast("Approve token spending…", 60000); await (await tw.approve(spender, ethers.MaxUint256)).wait(); }
-        toast("Confirm in your wallet…", 60000); await (await target.sell(a, x, min, deadline())).wait();
+        toast("Confirm in your wallet…", 60000);
+        const tx = l.graduated ? await target.swapExactTokensForETH(x, min, [a, CFG.weth], account, deadline()) : await target.sell(a, x, min, deadline());
+        await tx.wait();
       }
       toast("Trade confirmed ✅"); showDetail(a);
     } catch (e) { toast(errMsg(e)); $("trade").disabled = false; }
@@ -365,7 +388,6 @@ async function showDetail(a) {
   $("claim").onclick = async () => {
     try { const s = await need();
       if (curveFees > 0n) await (await new ethers.Contract(CFG.launchpad, ABI.launchpad, s).claimCreatorFees(a)).wait();
-      if (poolFees > 0n) await (await new ethers.Contract(CFG.swap, ABI.swap, s).claimCreatorFees(a)).wait();
       toast("Earnings sent to the fee wallet."); showDetail(a);
     } catch (e) { toast(errMsg(e)); }
   };
@@ -375,6 +397,33 @@ async function showDetail(a) {
   };
   $("trades").innerHTML = await recentTrades(a, l.graduated);
 }
+
+// ---------------- admin ----------------
+async function refreshAdminButton() {
+  if (NOT_DEPLOYED || !account) { $("adminBtn").style.display = "none"; return; }
+  try { $("adminBtn").style.display = (await padR.owner()).toLowerCase() === account.toLowerCase() ? "" : "none"; } catch {}
+}
+const targetFor = (v) => v * 1_000_000_000n / 286_000_000n - v;
+async function openAdmin() {
+  $("adminModal").style.display = "flex";
+  const [v, lf, mf, r, pf] = await Promise.all([padR.virtualNativeReserve(), padR.launchFee(), padR.migrationFee(), padR.platformFeeRecipient(), padR.platformFeesAccrued()]);
+  $("aVirtual").value = ethers.formatEther(v); $("aLaunchFee").value = ethers.formatEther(lf); $("aMigFee").value = ethers.formatEther(mf); $("aRecipient").value = r;
+  $("aFees").textContent = `${num(pf, 6)} ${SYM} → ${short(r)}`;
+  const hint = () => { try { $("aVirtualHint").textContent = `New tokens will graduate at ~${num(targetFor(ethers.parseEther($("aVirtual").value || "0")), 6)} ${SYM} raised.`; } catch { $("aVirtualHint").textContent = ""; } };
+  $("aVirtual").oninput = hint; hint();
+}
+async function adminTx(fn, ok) {
+  try { const pad = new ethers.Contract(CFG.launchpad, ABI.launchpad, await need()); toast("Confirm in your wallet…", 60000); await (await fn(pad)).wait(); toast(ok); openAdmin(); }
+  catch (e) { toast(errMsg(e)); }
+}
+$("adminBtn").onclick = () => openAdmin().catch(e => toast(errMsg(e)));
+$("adminModal").onclick = (e) => { if (e.target.id === "adminModal") $("adminModal").style.display = "none"; };
+document.querySelectorAll("[data-pv]").forEach(b => b.onclick = () => { $("aVirtual").value = b.dataset.pv; $("aVirtual").oninput(); });
+$("aVirtualSave").onclick = () => adminTx(p => p.setVirtualNativeReserve(ethers.parseEther($("aVirtual").value)), "Virtual reserve updated.");
+$("aLaunchFeeSave").onclick = () => adminTx(p => p.setLaunchFee(ethers.parseEther($("aLaunchFee").value || "0")), "Launch fee updated.");
+$("aMigFeeSave").onclick = () => adminTx(p => p.setMigrationFee(ethers.parseEther($("aMigFee").value || "0")), "Migration fee updated.");
+$("aRecipientSave").onclick = () => { const r = $("aRecipient").value.trim(); if (!ethers.isAddress(r)) return toast("Invalid address."); adminTx(p => p.setPlatformFeeRecipient(r), "Fee recipient updated."); };
+$("aWithdraw").onclick = () => adminTx(p => p.withdrawPlatformFees(), "Platform fees sent.");
 
 // ---------------- router ----------------
 function route() {

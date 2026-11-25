@@ -6,21 +6,41 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {NullToken} from "./NullToken.sol";
-import {NullSwap} from "./NullSwap.sol";
+
+interface IUniswapV2Factory {
+    function getPair(address tokenA, address tokenB) external view returns (address);
+    function createPair(address tokenA, address tokenB) external returns (address);
+}
+
+interface IUniswapV2Pair {
+    function mint(address to) external returns (uint256 liquidity);
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    function token0() external view returns (address);
+}
+
+interface IWETH {
+    function deposit() external payable;
+}
 
 /// @title NullLaunchpad
-/// @notice Permissionless token launchpad with per-token bonding curves.
+/// @notice Permissionless token launchpad with per-token bonding curves that graduate to Uniswap V2.
 ///
 ///  Supply (1,000,000,000 per token, all minted to the launchpad):
 ///   - 71.4% sold on a constant-product curve over virtual reserves
-///   - ~20.4% seeds a NullSwap pool at graduation (at the curve's final price)
+///   - ~20.4% + all raised native (as WETH) seed a Uniswap V2 pool at the curve's final price.
+///     The LP tokens are sent to 0x…dEaD: the liquidity is locked forever.
 ///   - the rest (~8.2%) is locked forever at graduation (sent to 0x…dEaD)
 ///
-///  Fees:
+///  Fees on the curve:
 ///   - 1% trade fee on every buy and sell (30% platform / 70% creator)
 ///   - optional creator tax, fixed at launch (trade fee + creator tax <= 10%)
 ///   - opening tax: buy-only anti-snipe tax that decays linearly to 0
 ///     (the creator's opening buy in the launch transaction is exempt)
+///  After graduation the token trades on Uniswap V2 like any other token (0.3% LP fee, which
+///  accrues to the locked liquidity).
+///
+///  The owner can change the virtual reserve (graduation size), launch fee and migration fee for
+///  FUTURE launches only. Existing launches keep the parameters they started with.
 contract NullLaunchpad is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
@@ -38,14 +58,15 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
     address public constant LOCK_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     // ---------------- config ----------------
-    uint256 public immutable virtualNativeReserve; // e.g. 1.68 => graduates at ~4.2 native
+    IUniswapV2Factory public immutable uniswapFactory;
+    address public immutable weth;
     uint256 public immutable openingTaxStartBps; // e.g. 8000 = 80% at t=0
     uint256 public immutable openingTaxDuration; // seconds until the opening tax reaches 0
 
-    NullSwap public immutable swap;
+    uint256 public virtualNativeReserve; // for new launches; 1.68 => graduates at ~4.19 native
     address public platformFeeRecipient;
     uint256 public launchFee; // native, paid on createToken
-    uint256 public migrationFee; // native, taken from the curve at graduation
+    uint256 public migrationFee; // native, taken from the curve at graduation (capped at 10% of it)
     uint256 public platformFeesAccrued;
 
     // ---------------- state ----------------
@@ -55,6 +76,7 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         uint16 creatorTaxBps;
         uint64 createdAt;
         bool graduated;
+        uint256 initialVirtualNative;
         uint256 virtualNative;
         uint256 virtualToken;
         uint256 realNative;
@@ -75,23 +97,27 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         string symbol;
         Launch launch;
         Metadata meta;
+        address pair; // Uniswap V2 pair once graduated
         uint256 price; // native wei per 1 whole token
         uint256 progressBps;
         uint256 openingTaxBps; // current
+        uint256 graduationTarget; // native the curve must raise
         uint256 creatorFeesAccrued;
     }
 
     mapping(address => Launch) public launches;
     mapping(address => Metadata) internal _meta;
     mapping(address => uint256) public creatorFeesAccrued; // token => native
+    mapping(address => address) public pairOf; // token => Uniswap V2 pair (set at graduation)
     address[] public allTokens;
 
     // ---------------- events ----------------
     event TokenLaunched(address indexed token, address indexed creator, string name, string symbol, uint16 creatorTaxBps);
     event Trade(address indexed token, address indexed trader, bool isBuy, uint256 nativeAmount, uint256 tokenAmount, uint256 fee, uint256 virtualNative, uint256 virtualToken);
-    event Graduated(address indexed token, uint256 nativeToPool, uint256 tokensToPool, uint256 tokensLocked);
+    event Graduated(address indexed token, address indexed pair, uint256 nativeToPool, uint256 tokensToPool, uint256 tokensLocked, uint256 liquidity);
     event FeeWalletChanged(address indexed token, address wallet);
     event CreatorFeesClaimed(address indexed token, address indexed to, uint256 amount);
+    event ParamsChanged(uint256 virtualNativeReserve, uint256 launchFee, uint256 migrationFee);
 
     // ---------------- errors ----------------
     error UnknownToken();
@@ -105,6 +131,8 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
     error InsufficientLaunchFee();
 
     constructor(
+        address uniswapFactory_,
+        address weth_,
         uint256 virtualNativeReserve_,
         uint256 openingTaxStartBps_,
         uint256 openingTaxDuration_,
@@ -112,15 +140,17 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         uint256 migrationFee_,
         address platformFeeRecipient_
     ) Ownable(msg.sender) {
+        if (uniswapFactory_ == address(0) || weth_ == address(0)) revert BadParams();
         if (virtualNativeReserve_ == 0 || platformFeeRecipient_ == address(0)) revert BadParams();
         if (openingTaxStartBps_ + MAX_TOTAL_FEE_BPS >= BPS) revert BadParams();
+        uniswapFactory = IUniswapV2Factory(uniswapFactory_);
+        weth = weth_;
         virtualNativeReserve = virtualNativeReserve_;
         openingTaxStartBps = openingTaxStartBps_;
         openingTaxDuration = openingTaxDuration_;
         launchFee = launchFee_;
         migrationFee = migrationFee_;
         platformFeeRecipient = platformFeeRecipient_;
-        swap = new NullSwap();
     }
 
     modifier checkDeadline(uint256 deadline) {
@@ -150,13 +180,14 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         if (creatorTaxBps > MAX_CREATOR_TAX_BPS) revert BadParams();
         if (msg.value < launchFee) revert InsufficientLaunchFee();
 
-        token = address(new NullToken(name, symbol, msg.sender, TOTAL_SUPPLY));
+        token = address(new NullToken(name, symbol, msg.sender, TOTAL_SUPPLY, address(uniswapFactory), weth));
         launches[token] = Launch({
             creator: msg.sender,
             feeWallet: feeWallet == address(0) ? msg.sender : feeWallet,
             creatorTaxBps: creatorTaxBps,
             createdAt: uint64(block.timestamp),
             graduated: false,
+            initialVirtualNative: virtualNativeReserve,
             virtualNative: virtualNativeReserve,
             virtualToken: VIRTUAL_TOKEN_RESERVE,
             realNative: 0,
@@ -181,7 +212,7 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
     }
 
     // =====================================================================
-    // Trade
+    // Trade (bonding curve)
     // =====================================================================
 
     function buy(address token, uint256 minTokensOut, uint256 deadline) external payable nonReentrant checkDeadline(deadline) {
@@ -259,13 +290,16 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
     }
 
     // =====================================================================
-    // Graduation
+    // Graduation -> Uniswap V2
     // =====================================================================
 
     function _graduate(address token, Launch storage l) internal {
         l.graduated = true;
+        NullToken(token).markGraduated();
+
         uint256 nativeAmt = l.realNative;
-        uint256 mFee = migrationFee < nativeAmt ? migrationFee : 0;
+        uint256 maxFee = nativeAmt / 10;
+        uint256 mFee = migrationFee > maxFee ? maxFee : migrationFee;
         nativeAmt -= mFee;
         platformFeesAccrued += mFee;
         l.realNative = 0;
@@ -276,14 +310,24 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         if (tokensToPool > available) tokensToPool = available;
         uint256 locked = available - tokensToPool;
 
+        address pair = uniswapFactory.getPair(token, weth);
+        if (pair == address(0)) pair = uniswapFactory.createPair(token, weth);
+        pairOf[token] = pair;
+
+        // Fund the pair directly and mint, instead of going through the router: any WETH someone
+        // donated to the pair beforehand simply becomes part of the locked liquidity. Nobody can have
+        // put tokens into the pair (NullToken blocks that until graduation), so this cannot be griefed.
+        IWETH(weth).deposit{value: nativeAmt}();
+        IERC20(weth).safeTransfer(pair, nativeAmt);
+        IERC20(token).safeTransfer(pair, tokensToPool);
+        uint256 liquidity = IUniswapV2Pair(pair).mint(LOCK_ADDRESS); // LP tokens burned: liquidity locked forever
+
         if (locked > 0) IERC20(token).safeTransfer(LOCK_ADDRESS, locked);
-        IERC20(token).safeTransfer(address(swap), tokensToPool);
-        swap.createPool{value: nativeAmt}(token, tokensToPool, l.creatorTaxBps);
-        emit Graduated(token, nativeAmt, tokensToPool, locked);
+        emit Graduated(token, pair, nativeAmt, tokensToPool, locked, liquidity);
     }
 
     // =====================================================================
-    // Fees
+    // Fees & admin
     // =====================================================================
 
     /// @notice Anyone can trigger; funds always go to the token's fee wallet.
@@ -295,6 +339,7 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         emit CreatorFeesClaimed(token, to, amt);
     }
 
+    /// @notice Anyone can trigger; funds always go to the platform fee recipient.
     function withdrawPlatformFees() external nonReentrant {
         uint256 amt = platformFeesAccrued;
         platformFeesAccrued = 0;
@@ -306,13 +351,22 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         platformFeeRecipient = r;
     }
 
-    function setLaunchFee(uint256 fee) external onlyOwner {
-        launchFee = fee;
+    /// @notice Applies to launches created after this call only.
+    function setVirtualNativeReserve(uint256 v) external onlyOwner {
+        if (v == 0) revert BadParams();
+        virtualNativeReserve = v;
+        emit ParamsChanged(virtualNativeReserve, launchFee, migrationFee);
     }
 
+    function setLaunchFee(uint256 fee) external onlyOwner {
+        launchFee = fee;
+        emit ParamsChanged(virtualNativeReserve, launchFee, migrationFee);
+    }
+
+    /// @notice Capped at 10% of the raised amount at graduation time.
     function setMigrationFee(uint256 fee) external onlyOwner {
-        if (fee > virtualNativeReserve / 10) revert BadParams(); // keep it small relative to the pool
         migrationFee = fee;
+        emit ParamsChanged(virtualNativeReserve, launchFee, migrationFee);
     }
 
     // =====================================================================
@@ -327,10 +381,18 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         return _openingTaxBps(launches[token]);
     }
 
-    /// @notice Native needed for the curve to sell out (excluding fees).
+    /// @notice Native the curve must raise (excluding fees) for a given starting virtual reserve.
+    function _target(uint256 v) internal pure returns (uint256) {
+        return v * VIRTUAL_TOKEN_RESERVE / (VIRTUAL_TOKEN_RESERVE - CURVE_SUPPLY) - v;
+    }
+
+    /// @notice Graduation target for NEW launches.
     function graduationTarget() public view returns (uint256) {
-        uint256 finalVirtualToken = VIRTUAL_TOKEN_RESERVE - CURVE_SUPPLY;
-        return virtualNativeReserve * VIRTUAL_TOKEN_RESERVE / finalVirtualToken - virtualNativeReserve;
+        return _target(virtualNativeReserve);
+    }
+
+    function graduationTargetOf(address token) public view returns (uint256) {
+        return _target(launches[token].initialVirtualNative);
     }
 
     function quoteBuy(address token, uint256 value) external view returns (uint256 tokensOut) {
@@ -350,12 +412,15 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         nativeOut = gross - gross * (TRADE_FEE_BPS + l.creatorTaxBps) / BPS;
     }
 
+    /// @notice Native wei per 1 whole token: curve price, or Uniswap pool price once graduated.
     function priceOf(address token) public view returns (uint256) {
         Launch memory l = launches[token];
         if (l.creator == address(0)) return 0;
         if (l.graduated) {
-            (uint256 rn, uint256 rt,,) = swap.pools(token);
-            return rn * 1e18 / rt;
+            IUniswapV2Pair pair = IUniswapV2Pair(pairOf[token]);
+            (uint112 r0, uint112 r1,) = pair.getReserves();
+            (uint256 rToken, uint256 rNative) = pair.token0() == token ? (uint256(r0), uint256(r1)) : (uint256(r1), uint256(r0));
+            return rToken == 0 ? 0 : rNative * 1e18 / rToken;
         }
         return l.virtualNative * 1e18 / l.virtualToken;
     }
@@ -382,10 +447,12 @@ contract NullLaunchpad is ReentrancyGuard, Ownable {
         v.symbol = NullToken(token).symbol();
         v.launch = l;
         v.meta = _meta[token];
+        v.pair = pairOf[token];
         v.price = priceOf(token);
         v.progressBps = progressBps(token);
         v.openingTaxBps = _openingTaxBps(l);
-        v.creatorFeesAccrued = creatorFeesAccrued[token] + swap.creatorFeesAccrued(token);
+        v.graduationTarget = _target(l.initialVirtualNative);
+        v.creatorFeesAccrued = creatorFeesAccrued[token];
     }
 
     /// @notice Newest first.
