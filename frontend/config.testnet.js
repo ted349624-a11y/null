@@ -14,7 +14,18 @@ window.NULL_CONFIGS["testnet"] = {
   ],
   "logRpcUrls": [],
   "links": {},
-  "faucet": "https://portal.cdp.coinbase.com/products/faucet",
+  "faucets": [
+    {
+      "name": "Alchemy",
+      "url": "https://www.alchemy.com/faucets/base-sepolia"
+    },
+    {
+      "name": "QuickNode",
+      "url": "https://faucet.quicknode.com/base/sepolia",
+      "note": "needs a small mainnet balance"
+    }
+  ],
+  "logApi": "https://base-sepolia.blockscout.com/api",
   "testnet": true,
   "launchpad": "0x5e5cF3b8a1d0B99fEaf33B985552270B28674393",
   "swapRouter": "0xf5551CD1bc1c69C8fC43D11f602032A8F5972A68",

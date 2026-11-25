@@ -20,9 +20,10 @@ const CHAINS = {
     slot: "testnet", name: "Base Sepolia", symbol: "ETH", explorer: "https://sepolia.basescan.org",
     weth: "0x4200000000000000000000000000000000000006",
     quickBuys: ["0.001", "0.005", "0.01", "0.02"],
-    faucet: "https://portal.cdp.coinbase.com/products/faucet",
+    logApi: "https://base-sepolia.blockscout.com/api",
+    faucets: [{"name": "Alchemy", "url": "https://www.alchemy.com/faucets/base-sepolia"}, {"name": "QuickNode", "url": "https://faucet.quicknode.com/base/sepolia", "note": "needs a small mainnet balance"}],
   },
-  base: { slot: "mainnet", name: "Base", symbol: "ETH", explorer: "https://basescan.org", weth: "0x4200000000000000000000000000000000000006", mainnet: true, quickBuys: ["0.001", "0.005", "0.01", "0.05"] },
+  base: { slot: "mainnet", name: "Base", symbol: "ETH", explorer: "https://basescan.org", logApi: "https://base.blockscout.com/api", weth: "0x4200000000000000000000000000000000000006", mainnet: true, quickBuys: ["0.001", "0.005", "0.01", "0.05"] },
   zero: { slot: "zero", name: "Zero", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "https://explorer.zero.layerzero.network", mainnet: true },
   zeroTestnet: { slot: "zeroTestnet", name: "Zero Testnet", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "" },
   localhost: { slot: "testnet", name: "Localhost", symbol: "ETH", explorer: "", local: true },
@@ -87,7 +88,7 @@ async function main() {
   const cfg = {
     version: "v2", chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545",
     nativeSymbol: chain.symbol, explorer: chain.explorer, quickBuys: chain.quickBuys || ["0.1", "0.5", "1", "2"],
-    logRpcUrls: chain.logRpcUrls || [], links: chain.links || {}, faucet: chain.faucet || "",
+    logRpcUrls: chain.logRpcUrls || [], logApi: chain.logApi || "", links: chain.links || {}, faucets: chain.faucets || [],
     testnet: !chain.mainnet, launchpad, swapRouter: routerAddr, swapFactory: factory, weth, deployBlock: block,
   };
   const file = path.join(__dirname, `../frontend/config.${chain.slot}.js`);

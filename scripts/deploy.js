@@ -22,6 +22,7 @@ const CHAINS = {
     links: { uniswap: "https://app.uniswap.org/swap?chain=base&inputCurrency=ETH&outputCurrency=", dexscreener: "https://dexscreener.com/base/" },
     quickBuys: ["0.001", "0.005", "0.01", "0.05"],
     logRpcUrls: ["https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.llamarpc.com"],
+    logApi: "https://base.blockscout.com/api",
   },
   zeroTestnet: { name: "Zero Testnet", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "" },
   zero: { name: "Zero", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "https://explorer.zero.layerzero.network", mainnet: true },
@@ -85,7 +86,7 @@ async function main() {
   const cfg = {
     chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545",
     nativeSymbol: chain.symbol, explorer: chain.explorer, quickBuys: chain.quickBuys || ["0.1", "0.5", "1", "2"],
-    logRpcUrls: chain.logRpcUrls || [], links: chain.links || {},
+    logRpcUrls: chain.logRpcUrls || [], logApi: chain.logApi || "", links: chain.links || {},
     launchpad, uniswapRouter: uni.router, weth: uni.weth, deployBlock: block,
   };
   fs.writeFileSync(path.join(__dirname, "../frontend/config.js"), `window.NULL_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`);

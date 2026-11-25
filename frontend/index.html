@@ -37,6 +37,9 @@
   .tabs { display:grid; grid-template-columns:1fr 1fr; gap:6px; background:var(--card2); padding:4px; border-radius:12px; border:1px solid var(--line); }
   .tabs button { background:transparent; color:var(--mut); } .tabs button.on.buy { background:var(--grn); color:#03140a; } .tabs button.on.sell { background:var(--red); color:#1a0306; }
   .cols { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; align-items:start; } @media(max-width:860px){ .cols{grid-template-columns:1fr;} }
+  /* phones: token info, chart, trade panel, earnings, then the trade list */
+  @media(max-width:860px){ .cols { display:flex; flex-direction:column; gap:14px; } .colL, .colR { display:contents; }
+    .c-token{order:1} .c-chart{order:2} .c-trade{order:3} .c-creator{order:4} .c-trades{order:5} .cols .card { margin-top:0 !important; } }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media(max-width:600px){ .two{grid-template-columns:1fr;} }
   .badge { white-space:nowrap; display:inline-block; background:#1c2410; color:var(--acc); padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .badge.warn { background:#2a1a08; color:#ffb347; } .badge.mutd { background:#1a1d21; color:var(--mut); }
@@ -62,6 +65,7 @@
   .wmenu button.danger { color:var(--red); }
   .modal { position:fixed; inset:0; background:rgba(0,0,0,.65); display:none; align-items:flex-start; justify-content:center; z-index:10; overflow:auto; padding:40px 16px; }
   .modal .card { width:100%; max-width:620px; }
+  .pills button.on { border-color:var(--acc); color:var(--acc); }
   .pills { display:flex; gap:6px; flex-wrap:wrap; } .pills button { padding:5px 10px; font-size:12px; }
   .note { background:var(--card2); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--mut); }
 </style>
@@ -133,6 +137,7 @@
 <div id="toast"></div>
 
 <script src="./ethers.umd.min.js"></script>
+<script src="./vendor/lightweight-charts.standalone.production.js"></script>
 <script src="./abi.js"></script>
 <script src="./config.js"></script>
 <script src="./config.testnet.js"></script>
@@ -289,50 +294,198 @@ async function logProviders() {
   list.push(rp);
   return list;
 }
+
+// ---------------- history: trades table + chart ----------------
+// Base's public RPCs only answer eth_getLogs for a few hundred blocks, so history comes from the chain's
+// Blockscout API (no key, timestamps included) and falls back to RPCs (wallet first) in chunks.
 const SWAP_IFACE = new ethers.Interface(["event Swap(address indexed sender,uint256 amount0In,uint256 amount1In,uint256 amount0Out,uint256 amount1Out,address indexed to)"]);
-async function fetchTrades(prov, token, pair) {
-  const latest = await prov.getBlockNumber();
-  const floor = Math.max(CFG.deployBlock || 0, latest - 200000);
-  const CHUNK = 9000, rows = [];
-  const tradeTopic = padR.interface.getEvent("Trade").topicHash, tok = ethers.zeroPadValue(token, 32);
-  const swapTopic = SWAP_IFACE.getEvent("Swap").topicHash;
-  let wIs0 = null;
-  if (pair) wIs0 = await new ethers.Contract(pair, ["function wethIsToken0() view returns (bool)"], prov).wethIsToken0();
-  for (let to = latest; to >= floor && rows.length < 25; to -= CHUNK + 1) {
-    const from = Math.max(floor, to - CHUNK);
-    const [c, sw] = await Promise.all([
-      prov.getLogs({ address: CFG.launchpad, topics: [tradeTopic, tok], fromBlock: from, toBlock: to }),
-      pair ? prov.getLogs({ address: pair, topics: [swapTopic], fromBlock: from, toBlock: to }) : [],
-    ]);
-    for (const l of c) { const e = padR.interface.parseLog(l); rows.push({ l, trader: e.args.trader, isBuy: e.args.isBuy, native: e.args.nativeAmount, tokens: e.args.tokenAmount, venue: "curve" }); }
-    for (const l of sw) {
-      const e = SWAP_IFACE.parseLog(l);
-      const [wIn, wOut, tIn, tOut] = wIs0 ? [e.args.amount0In, e.args.amount0Out, e.args.amount1In, e.args.amount1Out] : [e.args.amount1In, e.args.amount1Out, e.args.amount0In, e.args.amount0Out];
-      const isBuy = wIn > 0n;
-      rows.push({ l, trader: isBuy ? e.args.to : null, isBuy, native: isBuy ? wIn : wOut, tokens: isBuy ? tOut : tIn, venue: DEX });
+const SYNC_IFACE = new ethers.Interface(["event Sync(uint112 reserve0,uint112 reserve1)"]);
+const TOPIC = { trade: padR.interface.getEvent("Trade").topicHash, swap: SWAP_IFACE.getEvent("Swap").topicHash, sync: SYNC_IFACE.getEvent("Sync").topicHash };
+
+async function logsFromApi(address, topic0, topic1) {
+  const out = [], seen = new Set();
+  let from = CFG.deployBlock || 0;
+  for (let page = 0; page < 30; page++) {
+    let url = `${CFG.logApi}?module=logs&action=getLogs&fromBlock=${from}&toBlock=latest&address=${address}&topic0=${topic0}`;
+    if (topic1) url += `&topic1=${topic1}&topic0_1_opr=and`;
+    const r = await withTimeout(fetch(url).then(x => x.json()), 12000);
+    const items = Array.isArray(r.result) ? r.result : [];
+    if (r.status !== "1" && !(items.length === 0 && /no (logs|records)/i.test(r.message || ""))) throw new Error(r.message || "log api error");
+    for (const x of items) {
+      const l = { blockNumber: parseInt(x.blockNumber, 16), index: parseInt(x.logIndex || "0x0", 16), transactionHash: x.transactionHash, topics: x.topics.filter(Boolean), data: x.data, ts: parseInt(x.timeStamp, 16) };
+      const key = l.transactionHash + ":" + l.index;
+      if (!seen.has(key)) { seen.add(key); out.push(l); }
     }
+    if (items.length < 1000) break;
+    from = out[out.length - 1].blockNumber; // the last block may continue on the next page; duplicates are skipped
   }
-  rows.sort((x, y) => y.l.blockNumber - x.l.blockNumber || y.l.index - x.l.index);
-  const top = rows.slice(0, 25);
-  // Sells go through the router, so the pair event doesn't name the seller: read it from the transaction.
-  await Promise.all(top.filter(r => !r.trader).map(async r => { try { r.trader = (await prov.getTransaction(r.l.transactionHash)).from; } catch { r.trader = ethers.ZeroAddress; } }));
-  return top;
+  return out;
 }
-async function recentTrades(token, graduated, pair) {
-  let rows = null;
-  const poolPair = IS_V2 && graduated && pair && pair !== ethers.ZeroAddress ? pair : null;
-  for (const prov of await logProviders()) {
-    try { rows = await withTimeout(fetchTrades(prov, token, poolPair), 12000); break; } catch {}
+
+async function historyFromRpc(prov, token, pair) {
+  const latest = await prov.getBlockNumber();
+  const [bl, b0] = await Promise.all([prov.getBlock(latest), prov.getBlock(Math.max(0, latest - 1000))]);
+  const bt = (bl.timestamp - b0.timestamp) / Math.max(1, latest - Math.max(0, latest - 1000)); // seconds per block
+  const tsOf = (bn) => Math.round(bl.timestamp - (latest - bn) * bt);
+  const floor = Math.max(CFG.deployBlock || 0, latest - 9000 * 12);
+  const tok = ethers.zeroPadValue(token, 32), h = { trade: [], swap: [], sync: [] };
+  for (let to = latest; to >= floor; to -= 9001) {
+    const from = Math.max(floor, to - 9000);
+    const [t, sw, sy] = await Promise.all([
+      prov.getLogs({ address: CFG.launchpad, topics: [TOPIC.trade, tok], fromBlock: from, toBlock: to }),
+      pair ? prov.getLogs({ address: pair, topics: [TOPIC.swap], fromBlock: from, toBlock: to }) : [],
+      pair ? prov.getLogs({ address: pair, topics: [TOPIC.sync], fromBlock: from, toBlock: to }) : [],
+    ]);
+    const norm = (l) => ({ blockNumber: l.blockNumber, index: l.index, transactionHash: l.transactionHash, topics: l.topics, data: l.data, ts: tsOf(l.blockNumber) });
+    h.trade.push(...t.map(norm)); h.swap.push(...sw.map(norm)); h.sync.push(...sy.map(norm));
   }
-  if (!rows) return '<div class="mut">Trade history is unavailable right now. Connect your wallet to load it through your wallet\'s RPC.</div>';
-  const dex = graduated && !IS_V2 && CFG.links?.dexscreener ? `<div class="mut" style="margin-bottom:8px">Bonding-curve trades below. Pool trades: <a href="${CFG.links.dexscreener}${token}" target="_blank" rel="noopener">DexScreener ↗</a></div>` : "";
-  if (!rows.length) return dex + '<div class="mut">No trades yet.</div>';
-  return dex + `<table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${rows.map(r =>
+  return h;
+}
+
+async function loadHistory(token, pair) {
+  if (CFG.logApi) {
+    try {
+      const tok = ethers.zeroPadValue(token, 32).toLowerCase();
+      const [trade, swap, sync] = await Promise.all([
+        logsFromApi(CFG.launchpad, TOPIC.trade, tok),
+        pair ? logsFromApi(pair, TOPIC.swap) : [],
+        pair ? logsFromApi(pair, TOPIC.sync) : [],
+      ]);
+      return { trade, swap, sync };
+    } catch {}
+  }
+  for (const prov of await logProviders()) {
+    try { return await withTimeout(historyFromRpc(prov, token, pair), 15000); } catch {}
+  }
+  return null;
+}
+
+const mcOf = (nativeReserve, tokenReserve) => Number(ethers.formatEther(nativeReserve)) / Number(ethers.formatEther(tokenReserve)) * 1e9;
+const byChain = (x, y) => x.l.blockNumber - y.l.blockNumber || x.l.index - y.l.index;
+
+function buildHistory(h, wIs0) {
+  const trades = [], points = [];
+  for (const l of h.trade) {
+    const e = padR.interface.parseLog(l);
+    trades.push({ l, trader: e.args.trader, isBuy: e.args.isBuy, native: e.args.nativeAmount, tokens: e.args.tokenAmount, venue: "curve" });
+    points.push({ l, ts: l.ts, mc: mcOf(e.args.virtualNative, e.args.virtualToken) });
+  }
+  for (const l of h.swap) {
+    const e = SWAP_IFACE.parseLog(l);
+    const [wIn, wOut, tIn, tOut] = wIs0 ? [e.args.amount0In, e.args.amount0Out, e.args.amount1In, e.args.amount1Out] : [e.args.amount1In, e.args.amount1Out, e.args.amount0In, e.args.amount0Out];
+    const isBuy = wIn > 0n;
+    trades.push({ l, trader: isBuy ? e.args.to : null, isBuy, native: isBuy ? wIn : wOut, tokens: isBuy ? tOut : tIn, venue: DEX });
+  }
+  for (const l of h.sync) {
+    const e = SYNC_IFACE.parseLog(l);
+    const [rW, rT] = wIs0 ? [e.args.reserve0, e.args.reserve1] : [e.args.reserve1, e.args.reserve0];
+    if (rT > 0n && rW > 0n) points.push({ l, ts: l.ts, mc: mcOf(rW, rT) });
+  }
+  trades.sort(byChain).reverse();
+  points.sort(byChain);
+  return { trades, points };
+}
+
+function tradesTable(trades, graduated, token) {
+  const dex = graduated && !IS_V2 && CFG.links?.dexscreener ? `<div class="mut" style="margin-bottom:8px">More pool data: <a href="${CFG.links.dexscreener}${token}" target="_blank" rel="noopener">DexScreener ↗</a></div>` : "";
+  if (!trades.length) return dex + '<div class="mut">No trades yet.</div>';
+  return dex + `<table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${trades.slice(0, 25).map(r =>
     `<tr><td>${addrLink(r.trader)}</td><td class="${r.isBuy ? "g" : "r"}">${r.isBuy ? "Buy" : "Sell"}</td><td>${num(r.native, 6)}</td><td>${compact(r.tokens)}</td><td class="mut">${r.venue}</td><td>${txLink(r.l.transactionHash)}</td></tr>`).join("")}</table>`;
 }
 
+// ---------------- chart ----------------
+const INTERVALS = [["auto", "Auto"], [60, "1m"], [300, "5m"], [900, "15m"], [3600, "1h"]];
+let chartObj = null, chartSeries = null, chartEl = null, chartInterval = "auto", histTimer = null, chartData = null, detailSeq = 0;
+const fmtMc = (v) => !isFinite(v) ? "" : Math.abs(v) < 1e-12 ? "0" : v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v >= 1 ? v.toLocaleString("en-US", { maximumFractionDigits: 3 }) : Number(v.toPrecision(3)).toString();
+function autoInterval(points) {
+  const span = points.length ? points[points.length - 1].ts - points[0].ts : 0;
+  return span < 3 * 3600 ? 60 : span < 12 * 3600 ? 300 : span < 2 * 86400 ? 900 : 3600;
+}
+function toCandles(points, interval, openMc) {
+  const out = [];
+  let cur = null, prev = openMc;
+  for (const p of points) {
+    const t = Math.floor(p.ts / interval) * interval;
+    if (!cur || cur.time !== t) {
+      if (cur) out.push(cur);
+      const o = prev ?? p.mc;
+      cur = { time: t, open: o, high: Math.max(o, p.mc), low: Math.min(o, p.mc), close: p.mc };
+    } else {
+      cur.high = Math.max(cur.high, p.mc); cur.low = Math.min(cur.low, p.mc); cur.close = p.mc;
+    }
+    prev = p.mc;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+function legendText(c) {
+  if (!c) return "";
+  const when = new Date(c.time * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return `${when} · O ${fmtMc(c.open)} · H ${fmtMc(c.high)} · L ${fmtMc(c.low)} · C ${fmtMc(c.close)}`;
+}
+function drawChart() {
+  const el = $("chart"); if (!el || !chartData) return;
+  if (chartObj && chartEl !== el) { chartObj.remove(); chartObj = null; chartSeries = null; } // page re-rendered
+  const LC = window.LightweightCharts;
+  if (!LC) { el.innerHTML = '<div class="mut">Chart library failed to load.</div>'; return; }
+  const interval = chartInterval === "auto" ? autoInterval(chartData.points) : chartInterval;
+  const candles = toCandles(chartData.points, interval, chartData.openMc);
+  document.querySelectorAll("#ivals button").forEach(b => b.classList.toggle("on", String(b.dataset.iv) === String(chartInterval)));
+  if (!candles.length) { if (chartObj) { chartObj.remove(); chartObj = null; } el.innerHTML = '<div class="mut" style="padding:40px 0;text-align:center">No trades yet — the chart starts with the first trade.</div>'; $("chartLegend").textContent = ""; return; }
+  if (!chartObj) {
+    el.innerHTML = "";
+    chartEl = el;
+    chartObj = LC.createChart(el, {
+      autoSize: true,
+      layout: { background: { type: "solid", color: "transparent" }, textColor: "#7d8790", fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: 12 },
+      grid: { vertLines: { color: "#1a1d21" }, horzLines: { color: "#1a1d21" } },
+      rightPriceScale: { borderColor: "#1f2328" },
+      timeScale: { borderColor: "#1f2328", timeVisible: true, secondsVisible: false },
+      crosshair: { mode: LC.CrosshairMode.Normal },
+      localization: { priceFormatter: fmtMc },
+    });
+    // Up = hollow green, down = filled red: the fill difference keeps direction readable without color.
+    chartSeries = chartObj.addSeries(LC.CandlestickSeries, {
+      upColor: "rgba(0,0,0,0)", downColor: "#ff5d6c", borderUpColor: "#4ade80", borderDownColor: "#ff5d6c",
+      wickUpColor: "#4ade80", wickDownColor: "#ff5d6c",
+      priceFormat: { type: "custom", formatter: fmtMc, minMove: 1e-9 },
+    });
+    chartObj.subscribeCrosshairMove((param) => {
+      const c = param && param.time ? param.seriesData.get(chartSeries) : null;
+      $("chartLegend").textContent = legendText(c ? { ...c, time: param.time } : chartData.lastCandle);
+    });
+  }
+  chartSeries.setData(candles);
+  chartData.lastCandle = candles[candles.length - 1];
+  $("chartLegend").textContent = legendText(chartData.lastCandle);
+  chartObj.timeScale().fitContent();
+}
+
+async function refreshHistory(a, v, seq) {
+  const l = v.launch;
+  const pair = l.graduated && v.pair && v.pair !== ethers.ZeroAddress ? v.pair : null;
+  let wIs0 = false;
+  if (pair) { try { wIs0 = (await new ethers.Contract(pair, ["function token0() view returns (address)"], rp).token0()).toLowerCase() === String(CFG.weth).toLowerCase(); } catch {} }
+  const h = await loadHistory(a, pair);
+  if (seq !== detailSeq || location.hash.slice(1).toLowerCase() !== a.toLowerCase()) return; // page changed meanwhile
+  if (!h) {
+    $("trades").innerHTML = '<div class="mut">Trade history is unavailable right now. Connect your wallet to load it through your wallet\'s RPC.</div>';
+    if ($("chart")) $("chart").innerHTML = '<div class="mut" style="padding:40px 0;text-align:center">Chart data is unavailable right now.</div>';
+    return;
+  }
+  const { trades, points } = buildHistory(h, wIs0);
+  // Sells routed through a router don't name the seller in the pair event: read it from the transaction.
+  await Promise.all(trades.slice(0, 25).filter(r => !r.trader).map(async r => { try { r.trader = (await rp.getTransaction(r.l.transactionHash)).from; } catch { r.trader = ethers.ZeroAddress; } }));
+  $("trades").innerHTML = tradesTable(trades, l.graduated, a);
+  chartData = { points, openMc: l.initialVirtualNative ? Number(ethers.formatEther(l.initialVirtualNative)) : undefined };
+  drawChart();
+}
+
 async function showDetail(a) {
-  clearInterval(tickTimer);
+  const seq = ++detailSeq;
+  clearInterval(tickTimer); clearInterval(histTimer);
+  if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; }
+  chartData = null;
   $("home").style.display = "none"; $("detail").style.display = "block";
   const v = await padR.getLaunch(a), l = v.launch;
   const tokR = new ethers.Contract(a, TOKEN_ABI, rp);
@@ -349,8 +502,8 @@ async function showDetail(a) {
   $("detail").innerHTML = `
   <button class="ghost sm" onclick="location.hash=''">← Back</button>
   <div class="cols" style="margin-top:16px">
-    <div>
-      <div class="card">
+    <div class="colL">
+      <div class="card c-token">
         <div class="row" style="align-items:flex-start">${avatar(v.meta, v.symbol, true)}
           <div class="min0" style="flex:1">
             <div class="row wrap"><h2 style="margin:0">${esc(v.name)}</h2><span class="mut mono">$${esc(v.symbol)}</span>
@@ -371,10 +524,15 @@ async function showDetail(a) {
         <div class="mut" style="margin-top:6px">${num(l.realNative, 6)} / ~${num(target, 6)} ${SYM} raised. When the curve sells out, liquidity moves to ${DEX} and is locked forever.</div>`}
         <div class="mut" style="margin-top:10px">Creator ${addrLink(l.creator)}${v.creatorStats ? ` (${v.creatorStats.launches} launched · ${v.creatorStats.graduations} graduated)` : ""} · creator tax ${Number(l.creatorTaxBps) / 100}% · fee wallet ${addrLink(l.feeWallet)}</div>
       </div>
-      <div class="card" style="margin-top:14px"><b>Recent trades</b><div id="trades" style="margin-top:8px" class="mut">Loading…</div></div>
+      <div class="card c-chart" style="margin-top:14px">
+        <div class="row sp wrap"><b>Market cap (${SYM})</b><div class="pills" id="ivals">${INTERVALS.map(([k, n]) => `<button class="ghost ${String(k) === String(chartInterval) ? "on" : ""}" data-iv="${k}">${n}</button>`).join("")}</div></div>
+        <div id="chartLegend" class="mut mono" style="min-height:18px;margin:8px 0 4px;font-size:12px"></div>
+        <div id="chart" style="height:320px;position:relative"><div class="mut" style="padding:40px 0;text-align:center">Loading chart…</div></div>
+      </div>
+      <div class="card c-trades" style="margin-top:14px"><b>Recent trades</b><div id="trades" style="margin-top:8px" class="mut">Loading…</div></div>
     </div>
-    <div>
-      <div class="card">
+    <div class="colR">
+      <div class="card c-trade">
         <div class="tabs"><button id="tBuy" class="buy ${mode === "buy" ? "on" : ""}">Buy</button><button id="tSell" class="sell ${mode === "sell" ? "on" : ""}">Sell</button></div>
         <div id="openTax" class="note" style="margin-top:12px;display:none"></div>
         <label>${mode === "buy" ? `Amount (${SYM})` : `Amount ($${esc(v.symbol)})`}</label>
@@ -385,7 +543,7 @@ async function showDetail(a) {
         <div class="row sp mut" style="margin-top:10px"><span>Balance: ${num(nBal)} ${SYM} · ${compact(bal)} $${esc(v.symbol)}</span>
           <span>Slippage <select id="slip" style="width:auto;padding:3px 6px">${[100, 300, 500, 1000, 2000].map(s => `<option value="${s}" ${BigInt(s) === slippageBps ? "selected" : ""}>${s / 100}%</option>`).join("")}</select></span></div>
       </div>
-      <div class="card" style="margin-top:14px">
+      <div class="card c-creator" style="margin-top:14px">
         <b>Creator earnings</b>
         <div class="mut" style="margin:6px 0">Unclaimed: <b style="color:var(--txt)">${num(curveFees, 6)} ${SYM}</b> → paid to ${addrLink(l.feeWallet)}. Anyone can trigger the payout.${l.graduated && !IS_V2 ? " Earnings come from bonding-curve trades; on Uniswap the 0.3% fee stays in the locked pool." : l.graduated ? " Includes nullswap trading fees." : ""}</div>
         <button class="ghost sm" id="claim" ${curveFees === 0n ? "disabled" : ""}>Send to fee wallet</button>
@@ -459,7 +617,11 @@ async function showDetail(a) {
     const w = $("newWallet").value.trim(); if (!ethers.isAddress(w)) return toast("Invalid address.");
     try { await (await new ethers.Contract(CFG.launchpad, PAD_ABI, await need()).setFeeWallet(a, w)).wait(); toast("Fee wallet updated."); showDetail(a); } catch (e) { toast(errMsg(e)); }
   };
-  $("trades").innerHTML = await recentTrades(a, l.graduated, v.pair);
+  document.querySelectorAll("#ivals button").forEach(b => b.onclick = () => { chartInterval = b.dataset.iv === "auto" ? "auto" : Number(b.dataset.iv); drawChart(); });
+  if (seq !== detailSeq) return;
+  await refreshHistory(a, v, seq);
+  clearInterval(histTimer);
+  histTimer = setInterval(async () => { if (!document.hidden && $("chart")) { try { await refreshHistory(a, await padR.getLaunch(a), seq); } catch {} } }, 20000);
 }
 
 // ---------------- admin ----------------
@@ -493,7 +655,7 @@ $("aWithdraw").onclick = () => adminTx(p => p.withdrawPlatformFees(), "Platform 
 function route() {
   const h = location.hash.slice(1);
   if (ethers.isAddress(h) && !NOT_DEPLOYED) showDetail(h).catch(e => { toast(errMsg(e)); });
-  else { clearInterval(tickTimer); $("detail").style.display = "none"; $("home").style.display = "block"; loadList().catch(e => { $("list").innerHTML = `<div class="card mut">Could not reach ${esc(CFG.chainName)} RPC. ${esc(errMsg(e))}</div>`; }); }
+  else { clearInterval(tickTimer); clearInterval(histTimer); if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; } $("detail").style.display = "none"; $("home").style.display = "block"; loadList().catch(e => { $("list").innerHTML = `<div class="card mut">Could not reach ${esc(CFG.chainName)} RPC. ${esc(errMsg(e))}</div>`; }); }
 }
 $("connect").onclick = (e) => {
   e.stopPropagation();
@@ -507,7 +669,8 @@ document.addEventListener("click", (e) => { if (!e.target.closest(".wallet")) $(
 $("net").textContent = `${CFG.chainName} · ${CFG.chainId}`;
 if (CFG.testnet) {
   $("testnetBar").style.display = "block";
-  $("testnetBar").innerHTML = `null testnet on ${esc(CFG.chainName)} — tokens have no real value.${CFG.faucet ? ` Get free test ETH: <a href="${esc(CFG.faucet)}" target="_blank" rel="noopener">faucet ↗</a>` : ""}`;
+  const faucets = (CFG.faucets || []).map(f => `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)} ↗</a>${f.note ? ` <span style="opacity:.7">(${esc(f.note)})</span>` : ""}`).join(" · ");
+  $("testnetBar").innerHTML = `null testnet on ${esc(CFG.chainName)} — tokens have no real value.${faucets ? ` Free test ETH: ${faucets}` : ""}`;
 }
 $("tagline").textContent = `Permissionless token launchpad on ${CFG.chainName}. Fair launch, bonding curve, liquidity locked forever on ${DEX}.`;
 $("footLinks").innerHTML = [

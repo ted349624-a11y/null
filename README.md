@@ -127,6 +127,10 @@ npm run deploy:local        # terminal 2
 npm run serve
 ```
 
+## Charts and trade history
+
+Token pages show a market-cap candlestick chart (Auto / 1m / 5m / 15m / 1h) and the latest trades from both the bonding curve and the pool. Base's public RPCs refuse wide `eth_getLogs` ranges, so the site reads history from the chain's public Blockscout API (`logApi` in the config; no key, timestamps included) and falls back to the wallet's RPC. Charts use TradingView's open-source [Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0, vendored in `frontend/vendor/` with its license).
+
 ## Before mainnet
 - [ ] Independent security audit (the code is tested, not audited)
 - [ ] Use a multisig for the owner and `FEE_RECIPIENT`
