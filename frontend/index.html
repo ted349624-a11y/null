@@ -38,7 +38,7 @@
   .tabs button { background:transparent; color:var(--mut); } .tabs button.on.buy { background:var(--grn); color:#03140a; } .tabs button.on.sell { background:var(--red); color:#1a0306; }
   .cols { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; align-items:start; } @media(max-width:860px){ .cols{grid-template-columns:1fr;} }
   /* phones: token info, chart, trade panel, earnings, then the trade list */
-  @media(max-width:860px){ .cols { display:flex; flex-direction:column; gap:14px; } .colL, .colR { display:contents; }
+  @media(max-width:860px){ .cols { display:flex; flex-direction:column; align-items:stretch; gap:14px; } .colL, .colR { display:contents; }
     .c-token{order:1} .c-chart{order:2} .c-trade{order:3} .c-creator{order:4} .c-trades{order:5} .cols .card { margin-top:0 !important; } }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media(max-width:600px){ .two{grid-template-columns:1fr;} }
   .badge { white-space:nowrap; display:inline-block; background:#1c2410; color:var(--acc); padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
@@ -57,6 +57,9 @@
   .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; } @media(max-width:600px){ .stats{grid-template-columns:1fr 1fr;} }
   table { width:100%; border-collapse:collapse; font-size:13px; } td, th { padding:7px 6px; border-bottom:1px solid var(--line); text-align:left; } th { color:var(--mut); font-weight:500; }
   .g { color:var(--grn); } .r { color:var(--red); }
+  .cols > *, .colL, .colR, .card { min-width:0; }
+  #chart { width:100%; overflow:hidden; }
+  .tscroll { overflow-x:auto; -webkit-overflow-scrolling:touch; } .tscroll table { white-space:nowrap; }
   .wallet { position:relative; }
   .wmenu { position:absolute; right:0; top:calc(100% + 8px); background:var(--card); border:1px solid var(--line); border-radius:12px; padding:6px; min-width:200px; display:none; z-index:12; box-shadow:0 10px 30px rgba(0,0,0,.45); }
   .wmenu.open { display:block; }
@@ -169,7 +172,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"
 const safeUrl = (u) => { u = String(u || "").trim(); if (u.startsWith("ipfs://")) return "https://ipfs.io/ipfs/" + u.slice(7); return /^https?:\/\//i.test(u) ? u : ""; };
 const num = (v, d = 4) => Number(ethers.formatEther(v)).toLocaleString("en-US", { maximumFractionDigits: d });
 const compact = (v) => { const n = Number(ethers.formatEther(v)); return n > 0 && n < 1 ? n.toLocaleString("en-US", { maximumSignificantDigits: 3 }) : n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 }); };
-const priceStr = (v) => { const n = Number(ethers.formatEther(v)); return n === 0 ? "0" : n < 0.0001 ? n.toExponential(3) : n.toLocaleString("en-US", { maximumSignificantDigits: 5 }); };
+const priceStr = (v) => fmtPrice(Number(ethers.formatEther(v)));
 const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 const addrLink = (a) => CFG.explorer ? `<a class="mono" href="${CFG.explorer}/address/${a}" target="_blank" rel="noopener">${short(a)}</a>` : `<span class="mono">${short(a)}</span>`;
 const txLink = (h) => CFG.explorer ? `<a class="mono" href="${CFG.explorer}/tx/${h}" target="_blank" rel="noopener">${h.slice(0, 8)}…</a>` : `<span class="mono">${h.slice(0, 8)}…</span>`;
@@ -368,7 +371,7 @@ function buildHistory(h, wIs0) {
   for (const l of h.trade) {
     const e = padR.interface.parseLog(l);
     trades.push({ l, trader: e.args.trader, isBuy: e.args.isBuy, native: e.args.nativeAmount, tokens: e.args.tokenAmount, venue: "curve" });
-    points.push({ l, ts: l.ts, mc: mcOf(e.args.virtualNative, e.args.virtualToken) });
+    { const mc = mcOf(e.args.virtualNative, e.args.virtualToken); points.push({ l, ts: l.ts, mc, price: mc / 1e9 }); }
   }
   for (const l of h.swap) {
     const e = SWAP_IFACE.parseLog(l);
@@ -379,7 +382,7 @@ function buildHistory(h, wIs0) {
   for (const l of h.sync) {
     const e = SYNC_IFACE.parseLog(l);
     const [rW, rT] = wIs0 ? [e.args.reserve0, e.args.reserve1] : [e.args.reserve1, e.args.reserve0];
-    if (rT > 0n && rW > 0n) points.push({ l, ts: l.ts, mc: mcOf(rW, rT) });
+    if (rT > 0n && rW > 0n) { const mc = mcOf(rW, rT); points.push({ l, ts: l.ts, mc, price: mc / 1e9 }); }
   }
   trades.sort(byChain).reverse();
   points.sort(byChain);
@@ -389,39 +392,57 @@ function buildHistory(h, wIs0) {
 function tradesTable(trades, graduated, token) {
   const dex = graduated && !IS_V2 && CFG.links?.dexscreener ? `<div class="mut" style="margin-bottom:8px">More pool data: <a href="${CFG.links.dexscreener}${token}" target="_blank" rel="noopener">DexScreener ↗</a></div>` : "";
   if (!trades.length) return dex + '<div class="mut">No trades yet.</div>';
-  return dex + `<table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${trades.slice(0, 25).map(r =>
-    `<tr><td>${addrLink(r.trader)}</td><td class="${r.isBuy ? "g" : "r"}">${r.isBuy ? "Buy" : "Sell"}</td><td>${num(r.native, 6)}</td><td>${compact(r.tokens)}</td><td class="mut">${r.venue}</td><td>${txLink(r.l.transactionHash)}</td></tr>`).join("")}</table>`;
+  return dex + `<div class="tscroll"><table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${trades.slice(0, 25).map(r =>
+    `<tr><td>${addrLink(r.trader)}</td><td class="${r.isBuy ? "g" : "r"}">${r.isBuy ? "Buy" : "Sell"}</td><td>${num(r.native, 6)}</td><td>${compact(r.tokens)}</td><td class="mut">${r.venue}</td><td>${txLink(r.l.transactionHash)}</td></tr>`).join("")}</table></div>`;
 }
 
 // ---------------- chart ----------------
 const INTERVALS = [["auto", "Auto"], [60, "1m"], [300, "5m"], [900, "15m"], [3600, "1h"]];
-let chartObj = null, chartSeries = null, chartEl = null, chartInterval = "auto", histTimer = null, chartData = null, detailSeq = 0;
+const MODES = [["price", "Price"], ["mc", "MC"]];
+let chartObj = null, chartSeries = null, chartEl = null, chartInterval = "auto", chartMode = "price", histTimer = null, chartData = null, detailSeq = 0;
+const SUB = "₀₁₂₃₄₅₆₇₈₉";
+// Tiny prices the way DexScreener shows them: 0.000000000208 -> 0.0₉208
+function fmtPrice(v) {
+  if (!isFinite(v)) return "";
+  if (Math.abs(v) < 1e-24) return "0";
+  if (v >= 1) return v.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  if (v >= 0.0001) return Number(v.toPrecision(4)).toString();
+  let zeros = -Math.floor(Math.log10(v)) - 1;
+  let m = Number((v * 10 ** (zeros + 1)).toPrecision(3)); // 1 <= m < 10, unless rounding carried to 10
+  if (m >= 10) { zeros -= 1; m = m / 10; }
+  if (zeros < 4) return Number(v.toPrecision(3)).toString();
+  const digits = m.toFixed(2).replace(".", "").replace(/0+$/, "") || "0";
+  return "0.0" + String(zeros).split("").map(d => SUB[+d]).join("") + digits;
+}
 const fmtMc = (v) => !isFinite(v) ? "" : Math.abs(v) < 1e-12 ? "0" : v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v >= 1 ? v.toLocaleString("en-US", { maximumFractionDigits: 3 }) : Number(v.toPrecision(3)).toString();
+const chartFmt = () => (chartMode === "price" ? fmtPrice : fmtMc);
 function autoInterval(points) {
   const span = points.length ? points[points.length - 1].ts - points[0].ts : 0;
   return span < 3 * 3600 ? 60 : span < 12 * 3600 ? 300 : span < 2 * 86400 ? 900 : 3600;
 }
-function toCandles(points, interval, openMc) {
+function toCandles(points, interval, open, key) {
   const out = [];
-  let cur = null, prev = openMc;
+  let cur = null, prev = open;
   for (const p of points) {
+    const v = p[key];
     const t = Math.floor(p.ts / interval) * interval;
     if (!cur || cur.time !== t) {
       if (cur) out.push(cur);
-      const o = prev ?? p.mc;
-      cur = { time: t, open: o, high: Math.max(o, p.mc), low: Math.min(o, p.mc), close: p.mc };
+      const o = prev ?? v;
+      cur = { time: t, open: o, high: Math.max(o, v), low: Math.min(o, v), close: v };
     } else {
-      cur.high = Math.max(cur.high, p.mc); cur.low = Math.min(cur.low, p.mc); cur.close = p.mc;
+      cur.high = Math.max(cur.high, v); cur.low = Math.min(cur.low, v); cur.close = v;
     }
-    prev = p.mc;
+    prev = v;
   }
   if (cur) out.push(cur);
   return out;
 }
 function legendText(c) {
   if (!c) return "";
+  const f = chartFmt();
   const when = new Date(c.time * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  return `${when} · O ${fmtMc(c.open)} · H ${fmtMc(c.high)} · L ${fmtMc(c.low)} · C ${fmtMc(c.close)}`;
+  return `${when} · O ${f(c.open)} · H ${f(c.high)} · L ${f(c.low)} · C ${f(c.close)}`;
 }
 function drawChart() {
   const el = $("chart"); if (!el || !chartData) return;
@@ -429,8 +450,11 @@ function drawChart() {
   const LC = window.LightweightCharts;
   if (!LC) { el.innerHTML = '<div class="mut">Chart library failed to load.</div>'; return; }
   const interval = chartInterval === "auto" ? autoInterval(chartData.points) : chartInterval;
-  const candles = toCandles(chartData.points, interval, chartData.openMc);
+  const open = chartMode === "price" ? chartData.openPrice : chartData.openMc;
+  const candles = toCandles(chartData.points, interval, open, chartMode);
   document.querySelectorAll("#ivals button").forEach(b => b.classList.toggle("on", String(b.dataset.iv) === String(chartInterval)));
+  document.querySelectorAll("#cmodes button").forEach(b => b.classList.toggle("on", b.dataset.mode === chartMode));
+  if ($("chartTitle")) $("chartTitle").textContent = chartMode === "price" ? `Price (${SYM})` : `Market cap (${SYM})`;
   if (!candles.length) { if (chartObj) { chartObj.remove(); chartObj = null; } el.innerHTML = '<div class="mut" style="padding:40px 0;text-align:center">No trades yet — the chart starts with the first trade.</div>'; $("chartLegend").textContent = ""; return; }
   if (!chartObj) {
     el.innerHTML = "";
@@ -442,19 +466,23 @@ function drawChart() {
       rightPriceScale: { borderColor: "#1f2328" },
       timeScale: { borderColor: "#1f2328", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LC.CrosshairMode.Normal },
-      localization: { priceFormatter: fmtMc },
     });
-    // Up = hollow green, down = filled red: the fill difference keeps direction readable without color.
+    // pump.fun-style solid candles
     chartSeries = chartObj.addSeries(LC.CandlestickSeries, {
-      upColor: "rgba(0,0,0,0)", downColor: "#ff5d6c", borderUpColor: "#4ade80", borderDownColor: "#ff5d6c",
+      upColor: "#4ade80", downColor: "#ff5d6c", borderUpColor: "#4ade80", borderDownColor: "#ff5d6c",
       wickUpColor: "#4ade80", wickDownColor: "#ff5d6c",
-      priceFormat: { type: "custom", formatter: fmtMc, minMove: 1e-9 },
     });
     chartObj.subscribeCrosshairMove((param) => {
       const c = param && param.time ? param.seriesData.get(chartSeries) : null;
       $("chartLegend").textContent = legendText(c ? { ...c, time: param.time } : chartData.lastCandle);
     });
   }
+  // Tick size follows the data so prices like 0.0₁₀2 still get a readable scale.
+  const lo = Math.min(...candles.map(c => c.low).filter(x => x > 0));
+  const minMove = isFinite(lo) ? 10 ** (Math.floor(Math.log10(lo)) - 3) : 1e-9;
+  const f = chartFmt();
+  chartObj.applyOptions({ localization: { priceFormatter: f } });
+  chartSeries.applyOptions({ priceFormat: { type: "custom", formatter: f, minMove } });
   chartSeries.setData(candles);
   chartData.lastCandle = candles[candles.length - 1];
   $("chartLegend").textContent = legendText(chartData.lastCandle);
@@ -477,7 +505,8 @@ async function refreshHistory(a, v, seq) {
   // Sells routed through a router don't name the seller in the pair event: read it from the transaction.
   await Promise.all(trades.slice(0, 25).filter(r => !r.trader).map(async r => { try { r.trader = (await rp.getTransaction(r.l.transactionHash)).from; } catch { r.trader = ethers.ZeroAddress; } }));
   $("trades").innerHTML = tradesTable(trades, l.graduated, a);
-  chartData = { points, openMc: l.initialVirtualNative ? Number(ethers.formatEther(l.initialVirtualNative)) : undefined };
+  const openMc = l.initialVirtualNative ? Number(ethers.formatEther(l.initialVirtualNative)) : undefined;
+  chartData = { points, openMc, openPrice: openMc === undefined ? undefined : openMc / 1e9 };
   drawChart();
 }
 
@@ -525,7 +554,7 @@ async function showDetail(a) {
         <div class="mut" style="margin-top:10px">Creator ${addrLink(l.creator)}${v.creatorStats ? ` (${v.creatorStats.launches} launched · ${v.creatorStats.graduations} graduated)` : ""} · creator tax ${Number(l.creatorTaxBps) / 100}% · fee wallet ${addrLink(l.feeWallet)}</div>
       </div>
       <div class="card c-chart" style="margin-top:14px">
-        <div class="row sp wrap"><b>Market cap (${SYM})</b><div class="pills" id="ivals">${INTERVALS.map(([k, n]) => `<button class="ghost ${String(k) === String(chartInterval) ? "on" : ""}" data-iv="${k}">${n}</button>`).join("")}</div></div>
+        <div class="row sp wrap" style="gap:8px"><div class="row" style="gap:10px"><b id="chartTitle">${chartMode === "price" ? `Price (${SYM})` : `Market cap (${SYM})`}</b><div class="pills" id="cmodes">${MODES.map(([k, n]) => `<button class="ghost ${k === chartMode ? "on" : ""}" data-mode="${k}">${n}</button>`).join("")}</div></div><div class="pills" id="ivals">${INTERVALS.map(([k, n]) => `<button class="ghost ${String(k) === String(chartInterval) ? "on" : ""}" data-iv="${k}">${n}</button>`).join("")}</div></div>
         <div id="chartLegend" class="mut mono" style="min-height:18px;margin:8px 0 4px;font-size:12px"></div>
         <div id="chart" style="height:320px;position:relative"><div class="mut" style="padding:40px 0;text-align:center">Loading chart…</div></div>
       </div>
@@ -618,6 +647,7 @@ async function showDetail(a) {
     try { await (await new ethers.Contract(CFG.launchpad, PAD_ABI, await need()).setFeeWallet(a, w)).wait(); toast("Fee wallet updated."); showDetail(a); } catch (e) { toast(errMsg(e)); }
   };
   document.querySelectorAll("#ivals button").forEach(b => b.onclick = () => { chartInterval = b.dataset.iv === "auto" ? "auto" : Number(b.dataset.iv); drawChart(); });
+  document.querySelectorAll("#cmodes button").forEach(b => b.onclick = () => { chartMode = b.dataset.mode; drawChart(); });
   if (seq !== detailSeq) return;
   await refreshHistory(a, v, seq);
   clearInterval(histTimer);
