@@ -8,13 +8,15 @@
     "test": "hardhat test",
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:testnet": "hardhat run scripts/deploy.js --network zeroTestnet",
+    "deploy:testnet": "hardhat run scripts/deploy2.js --network baseSepolia",
     "deploy:mainnet": "hardhat run scripts/deploy.js --network zero",
     "serve": "npx --yes serve frontend -l 8080",
-    "smoke:testnet": "hardhat run scripts/smoke.js --network zeroTestnet",
+    "smoke:testnet": "SMOKE_AMOUNT=0.0005 hardhat run scripts/smoke2.js --network baseSepolia",
     "smoke:local": "hardhat run scripts/smoke.js --network localhost",
     "deploy:base": "CONFIRM_MAINNET=1 hardhat run scripts/deploy.js --network base",
-    "smoke:base": "SMOKE_AMOUNT=0.0001 hardhat run scripts/smoke.js --network base"
+    "smoke:base": "SMOKE_AMOUNT=0.0001 hardhat run scripts/smoke.js --network base",
+    "deploy2:local": "hardhat run scripts/deploy2.js --network localhost",
+    "smoke2:local": "hardhat run scripts/smoke2.js --network localhost"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +28,7 @@
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "dotenv": "^18.0.10",
     "hardhat": "^2.30.0",
-    "solc": "^0.8.24"
+    "solc": "^0.8.24",
+    "solc0839": "npm:solc@^0.8.39"
   }
 }

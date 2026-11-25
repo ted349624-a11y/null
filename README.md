@@ -24,6 +24,26 @@
 
 Creator earnings accrue per token. Anyone can trigger the payout, and the money always goes to the token's **fee wallet**. The creator can change that wallet later, but nothing else about the token can be changed after launch.
 
+## nullswap generation (testnet → Zero)
+
+The next generation graduates into **nullswap**, null's own AMM, instead of Uniswap. It is built for chains without Uniswap (like Zero) and keeps earning after graduation.
+
+| Contract | Role |
+|---|---|
+| `NullLaunchpad2.sol` | Same curve, fees, opening tax and admin as v1, plus creator records (launches / graduations). Graduates into nullswap. |
+| `NullToken2.sol` | Plain fixed-supply ERC20, no restrictions |
+| `swap/NullSwapFactory.sol` | Deployed by the launchpad. Only the launchpad can create pairs (always token/WETH, CREATE2). |
+| `swap/NullSwapPair.sol` | Uniswap V2 pair port. Charges `1% + creator tax` on the WETH side of every swap and sends it to the launchpad (30% platform / 70% creator, creator tax 100% creator). No LP fee, no flash swaps; LP locked at `0x…dEaD`. Standard V2 events. |
+| `swap/NullSwapRouter.sol` | ETH ↔ token swaps with exact quotes (quote == execution). |
+
+Compiled with Solidity **0.8.39** (no known compiler bugs). Anything sent to a pair's predictable address before graduation is skimmed to `0x…dEaD`.
+
+```bash
+npm run deploy:testnet                 # Base Sepolia, writes frontend/config.testnet.js
+GRADUATE=1 npm run smoke:testnet       # live check incl. graduation and nullswap trading
+```
+The site serves the testnet deployment on `testnet.<domain>` (or `?net=testnet`) and mainnet everywhere else.
+
 ## Contracts
 
 | Contract | Role |
@@ -63,7 +83,7 @@ npx hardhat verify --network base --contract contracts/NullToken.sol:NullToken <
 
 ```bash
 npm install
-npm test                    # 15 tests against the real Uniswap V2 bytecode (offline: USE_LOCAL_SOLC=1 npm test)
+npm test                    # 28 tests: v1 against real Uniswap V2 bytecode + the nullswap generation (offline: USE_LOCAL_SOLC=1 npm test)
 ```
 
 ### Deploy to Zero testnet
