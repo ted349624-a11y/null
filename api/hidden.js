@@ -9,7 +9,7 @@ const LAUNCHED = ethers.id("TokenLaunched(address,address,string,string,uint16)"
 const DEPLOY_BLOCK = Number(process.env.TESTNET_DEPLOY_BLOCK || 63429131);
 const NONE = "-";
 
-async function getJson(url, ms = 9000) {
+async function getJson(url, ms = 6000) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), ms);
   try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error("HTTP " + r.status); return await r.json(); }
@@ -52,12 +52,14 @@ async function owner() {
 }
 
 module.exports = P.handler(async (req, res) => {
-  const all = await launches();
+  const deadline = Date.now() + 15000; // answer within the time limit; unfinished lookups continue on the next call
+  let all;
+  try { all = await launches(); } catch { throw P.fail(502, "Indexer unavailable, try again shortly."); }
   const creators = [...new Set(all.map((l) => l.creator))];
   // Funders never change, so each creator is looked up once and remembered.
   const known = P.pairs(await P.redis(["HGETALL", "cfund"]));
   const todo = creators.filter((c) => !known[c]).slice(0, 120);
-  for (let i = 0; i < todo.length; i += 6) {
+  for (let i = 0; i < todo.length && Date.now() < deadline; i += 6) {
     const got = await Promise.all(todo.slice(i, i + 6).map(async (c) => { try { return [c, await firstFunder(c)]; } catch { return null; } }));
     const ok = got.filter(Boolean);
     if (ok.length) { await P.redis(["HSET", "cfund", ...ok.flat()]); for (const [c, f] of ok) known[c] = f; }
@@ -72,6 +74,7 @@ module.exports = P.handler(async (req, res) => {
   const hidden = all.filter((l) => bot.has(l.creator)).map((l) => l.token);
   res.statusCode = 200;
   res.setHeader("content-type", "application/json");
-  res.setHeader("cache-control", "public, s-maxage=60, stale-while-revalidate=300");
-  res.end(JSON.stringify({ hidden, botWallets: bot.size, pending: Math.max(0, creators.filter((c) => !known[c]).length) }));
+  const pending = creators.filter((c) => !known[c]).length;
+  res.setHeader("cache-control", pending ? "no-store" : "public, s-maxage=60, stale-while-revalidate=300");
+  res.end(JSON.stringify({ hidden, botWallets: bot.size, checked: creators.length - pending, pending }));
 });
