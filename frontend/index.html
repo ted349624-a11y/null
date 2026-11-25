@@ -705,7 +705,6 @@ if (CFG.testnet) {
 $("tagline").textContent = `Permissionless token launchpad on ${CFG.chainName}. Fair launch, bonding curve, liquidity locked forever on ${DEX}.`;
 $("footLinks").innerHTML = [
   !NOT_DEPLOYED && CFG.explorer ? `<a href="${CFG.explorer}/address/${CFG.launchpad}#code" target="_blank" rel="noopener">Launchpad contract ✓ verified</a>` : "",
-  `<a href="https://github.com/ted349624-a11y/null" target="_blank" rel="noopener">Source code</a>`,
   ROUTER_ADDR && CFG.explorer ? `<a href="${CFG.explorer}/address/${ROUTER_ADDR}" target="_blank" rel="noopener">${IS_V2 ? "nullswap router" : "Uniswap V2 router"}</a>` : "",
 ].filter(Boolean).join("");
 window.addEventListener("hashchange", route);
