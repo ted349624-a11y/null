@@ -447,6 +447,7 @@ $("launchBtn").onclick = async () => {
     $("launchBtn").disabled = true; toast("Confirm in your wallet…", 60000);
     const rc = await (await pad.createToken(name, sym, meta, tax, wallet || ethers.ZeroAddress, 0, { value: launchFee + buy })).wait();
     const ev = rc.logs.map(l => { try { return pad.interface.parseLog(l); } catch { return null; } }).find(e => e?.name === "TokenLaunched");
+    histFreshUntil = Date.now() + 60000;
     toast(`$${sym} is live!`); closeLaunch(); ptsAfterTx(rc.hash);
     ["fName","fSym","fImg","fDesc","fWeb","fX","fTg","fWallet","fBuy"].forEach(i => $(i).value = ""); $("fTax").value = "0";
     location.hash = ev.args.token;
@@ -514,7 +515,16 @@ async function historyFromRpc(prov, token, pair) {
   return h;
 }
 
+let histFreshUntil = 0; // right after the user's own trade, skip the shared cache so the trade shows up at once
 async function loadHistory(token, pair) {
+  if (CFG.testnet) {
+    // Our own server fetches and caches it (works even where the browser can't reach the indexer).
+    try {
+      const fresh = Date.now() < histFreshUntil ? `&fresh=${Date.now()}` : "";
+      const r = await withTimeout(fetch(`/api/history?token=${token}${pair ? "&pair=" + pair : ""}${fresh}`).then(x => x.ok ? x.json() : Promise.reject(new Error("HTTP " + x.status))), 20000);
+      if (r && Array.isArray(r.trade)) return r;
+    } catch {}
+  }
   if (CFG.logApi) {
     try {
       const tok = ethers.zeroPadValue(token, 32).toLowerCase();
@@ -666,8 +676,10 @@ async function refreshHistory(a, v, seq) {
   const h = await loadHistory(a, pair);
   if (seq !== detailSeq || location.hash.slice(1).toLowerCase() !== a.toLowerCase()) return; // page changed meanwhile
   if (!h) {
-    $("trades").innerHTML = '<div class="mut">Trade history is unavailable right now. Connect your wallet to load it through your wallet\'s RPC.</div>';
-    if ($("chart")) $("chart").innerHTML = '<div class="mut" style="padding:40px 0;text-align:center">Chart data is unavailable right now.</div>';
+    if (chartData) return; // keep what's on screen; the next refresh will catch up
+    $("trades").innerHTML = '<div class="mut">Loading trade history is taking longer than usual. Retrying…</div>';
+    if ($("chart")) $("chart").innerHTML = '<div class="mut" style="padding:40px 0;text-align:center">Loading chart… retrying.</div>';
+    setTimeout(() => { if (seq === detailSeq && !chartData) refreshHistory(a, v, seq); }, 5000);
     return;
   }
   const { trades, points } = buildHistory(h, wIs0);
@@ -803,7 +815,9 @@ async function showDetail(a) {
         const tx = !l.graduated ? await target.sell(a, x, min, deadline()) : IS_V2 ? await target.swapExactTokensForETH(a, x, min, account, deadline()) : await target.swapExactTokensForETH(x, min, [a, CFG.weth], account, deadline());
         await tx.wait(); txHash = tx.hash;
       }
+      histFreshUntil = Date.now() + 60000;
       toast("Trade confirmed ✅"); showDetail(a); setTimeout(() => ptsAfterTx(txHash), 1200);
+      setTimeout(() => { if (location.hash.slice(1).toLowerCase() === a.toLowerCase()) padR.getLaunch(a).then(v => refreshHistory(a, v, detailSeq)).catch(() => {}); }, 6000);
     } catch (e) { toast(errMsg(e)); $("trade").disabled = false; }
   };
   $("claim").onclick = async () => {
