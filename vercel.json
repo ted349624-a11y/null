@@ -21,6 +21,20 @@
     {
       "source": "/app",
       "destination": "/app.html"
+    },
+    {
+      "source": "/hostprobe",
+      "has": [
+        {
+          "type": "host",
+          "value": "testnet.nullfamily.fun"
+        }
+      ],
+      "destination": "/app.html"
+    },
+    {
+      "source": "/hostprobe",
+      "destination": "/quests.html"
     }
   ]
 }
