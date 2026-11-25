@@ -76,7 +76,7 @@
 <main>
   <section id="home">
     <div class="hero">
-      <div><h1>launch <span>anything</span>.</h1><div class="mut">Permissionless token launchpad on Zero. Fair launch, bonding curve, locked liquidity.</div></div>
+      <div><h1>launch <span>anything</span>.</h1><div class="mut" id="tagline">Permissionless token launchpad. Fair launch, bonding curve, locked liquidity.</div></div>
       <div class="pills" id="sort"><button class="ghost on" data-s="new">Newest</button><button class="ghost" data-s="mcap">Market cap</button><button class="ghost" data-s="prog">Closest to graduation</button></div>
     </div>
     <div id="list" class="grid"><span class="mut">Loading…</span></div>
@@ -474,6 +474,7 @@ $("wExplorer").onclick = () => { $("wmenu").classList.remove("open"); if (CFG.ex
 $("wDisconnect").onclick = () => disconnect();
 document.addEventListener("click", (e) => { if (!e.target.closest(".wallet")) $("wmenu").classList.remove("open"); });
 $("net").textContent = `${CFG.chainName} · ${CFG.chainId}`;
+$("tagline").textContent = `Permissionless token launchpad on ${CFG.chainName}. Fair launch, bonding curve, liquidity locked forever on Uniswap.`;
 $("footLinks").innerHTML = [
   !NOT_DEPLOYED && CFG.explorer ? `<a href="${CFG.explorer}/address/${CFG.launchpad}#code" target="_blank" rel="noopener">Launchpad contract ✓ verified</a>` : "",
   `<a href="https://github.com/ted349624-a11y/null" target="_blank" rel="noopener">Source code</a>`,
