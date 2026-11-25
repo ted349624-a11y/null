@@ -1,7 +1,7 @@
 // GET /api/hidden — testnet tokens to keep off the token list: ones launched by bot wallet chains.
 // Rule: a launch creator that was funded by another launch creator, or that funded one, is part of a
 // wallet chain (one script passing its ETH from wallet to wallet). Wallets funded by faucets or
-// bridges never match; the launchpad owner, and wallets it funded, are never hidden. Points are not touched.
+// bridges never match; transfers to or from the launchpad owner never count. Points are not touched.
 const P = require("../lib/points");
 const { ethers } = P;
 
@@ -68,7 +68,8 @@ module.exports = P.handler(async (req, res) => {
   const bot = new Set();
   for (const c of creators) {
     const f = known[c];
-    if (f && f !== NONE && f !== c && f !== adminAddr && isCreator.has(f)) { bot.add(c); bot.add(f); } // the owner funding a wallet is fine
+    // Transfers to or from the owner never count (the owner funds testers; the setup wallet refunded the owner).
+    if (f && f !== NONE && f !== c && f !== adminAddr && c !== adminAddr && isCreator.has(f)) { bot.add(c); bot.add(f); }
   }
   bot.delete(adminAddr);
   const hidden = all.filter((l) => bot.has(l.creator)).map((l) => l.token);
