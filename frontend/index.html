@@ -43,6 +43,8 @@
   a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
   header button { white-space:nowrap; }
   @media(max-width:600px){ #net{display:none;} header{padding:10px 14px;} main{padding:16px;} .hero h1{font-size:28px;} }
+  footer { max-width:1180px; margin:24px auto 40px; padding:18px 24px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:10px 22px; justify-content:space-between; color:var(--mut); font-size:13px; }
+  footer .links { display:flex; flex-wrap:wrap; gap:8px 18px; }
   #toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#1a1e23; border:1px solid var(--line); padding:11px 16px; border-radius:10px; display:none; max-width:92%; z-index:20; }
   .hero { display:flex; justify-content:space-between; align-items:end; gap:16px; margin-bottom:22px; flex-wrap:wrap; }
   .hero h1 { margin:0; font:700 34px/1.1 ui-monospace, Menlo, monospace; letter-spacing:-1px; }
@@ -81,6 +83,10 @@
   </section>
   <section id="detail" style="display:none"></section>
 </main>
+<footer>
+  <div class="links" id="footLinks"></div>
+  <div>Fixed supply · no owner mint · liquidity locked forever on Uniswap V2. Trade at your own risk.</div>
+</footer>
 
 <div class="modal" id="launchModal">
   <div class="card">
@@ -468,6 +474,11 @@ $("wExplorer").onclick = () => { $("wmenu").classList.remove("open"); if (CFG.ex
 $("wDisconnect").onclick = () => disconnect();
 document.addEventListener("click", (e) => { if (!e.target.closest(".wallet")) $("wmenu").classList.remove("open"); });
 $("net").textContent = `${CFG.chainName} · ${CFG.chainId}`;
+$("footLinks").innerHTML = [
+  !NOT_DEPLOYED && CFG.explorer ? `<a href="${CFG.explorer}/address/${CFG.launchpad}#code" target="_blank" rel="noopener">Launchpad contract ✓ verified</a>` : "",
+  `<a href="https://github.com/ted349624-a11y/null" target="_blank" rel="noopener">Source code</a>`,
+  CFG.uniswapRouter && CFG.explorer ? `<a href="${CFG.explorer}/address/${CFG.uniswapRouter}" target="_blank" rel="noopener">Uniswap V2 router</a>` : "",
+].filter(Boolean).join("");
 window.addEventListener("hashchange", route);
 if (window.ethereum && store.get(DISC_KEY) !== "1") window.ethereum.request({ method: "eth_accounts" }).then(acc => { if (acc && acc.length) connect().then(route).catch(() => {}); }).catch(() => {});
 route();

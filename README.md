@@ -35,13 +35,21 @@ Creator earnings accrue per token. Anyone can trigger the payout, and the money 
 
 | Network | NullLaunchpad | Owner |
 |---|---|---|
-| Base (8453) | [`0x4dE50B493d3CE956222D4c09AFF6bd3b16c3E77a`](https://basescan.org/address/0x4dE50B493d3CE956222D4c09AFF6bd3b16c3E77a) | `0xf20949dE03Fbd6EeC56eE4d674759D2e5DA02f55` |
+| Base (8453) | [`0x4dE50B493d3CE956222D4c09AFF6bd3b16c3E77a`](https://basescan.org/address/0x4dE50B493d3CE956222D4c09AFF6bd3b16c3E77a#code) ✓ verified | `0xf20949dE03Fbd6EeC56eE4d674759D2e5DA02f55` |
 
 Base parameters for new launches: virtual reserve 1.68 ETH (graduates at ~4.19 ETH), opening tax 80% → 0 over 15 s, launch fee 0, migration fee 0.01 ETH. The owner can change the virtual reserve, launch fee and migration fee from the site's **Admin** panel; changes apply to new launches only.
 
 Graduates into Uniswap V2 on Base (factory `0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6`, router `0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24`). Live-tested on 2026-11-25: a test token launched at a ~$3 threshold graduated into pair [`0xB0D0f1EdCfff1Ce173467A960547110EFe82F533`](https://basescan.org/address/0xB0D0f1EdCfff1Ce173467A960547110EFe82F533) with its LP burned, then traded on Uniswap.
 
 An earlier Base deployment (`0x625Cd5Bb…4859`, own AMM instead of Uniswap) is retired.
+
+### Verifying contracts
+
+Source is verified on Basescan. To verify a new deployment or a launched token (`ETHERSCAN_API_KEY` in `.env`; one Etherscan V2 key covers Base):
+```bash
+npx hardhat verify --network base <launchpad> <uniswapFactory> <weth> <virtualNative> <openingTaxBps> <openingTaxSeconds> <launchFee> <migrationFee> <feeRecipient>
+npx hardhat verify --network base --contract contracts/NullToken.sol:NullToken <token> "<name>" "<SYMBOL>" <creator> 1000000000000000000000000000 <uniswapFactory> <weth>
+```
 
 ## Zero network
 

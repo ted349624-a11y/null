@@ -7,6 +7,9 @@ const PK = process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [];
 
 module.exports = {
   solidity: { version: "0.8.24", settings: { optimizer: { enabled: true, runs: 200 }, viaIR: true } },
+  // Etherscan API V2: one key works for Basescan and every other Etherscan-family explorer.
+  etherscan: { apiKey: process.env.ETHERSCAN_API_KEY || "" },
+  sourcify: { enabled: false },
   networks: {
     // LayerZero Zero — EVM (Interop) Zone. Native currency: ZRO.
     zeroTestnet: {
@@ -30,5 +33,5 @@ module.exports = {
 // Offline fallback: set USE_LOCAL_SOLC=1 to compile with the solcjs build in node_modules.
 subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD, async (args, hre, runSuper) => {
   if (process.env.USE_LOCAL_SOLC !== "1") return runSuper();
-  return { compilerPath: require.resolve("solc/soljson.js"), isSolcJs: true, version: args.solcVersion, longVersion: require("solc").version() };
+  return { compilerPath: require.resolve("solc/soljson.js"), isSolcJs: true, version: args.solcVersion, longVersion: require("solc").version().replace(".Emscripten.clang", "") };
 });
