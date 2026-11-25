@@ -131,16 +131,14 @@ npm run serve
 
 `nullfamily.fun` opens on the quests page (`frontend/quests.html`); `testnet.nullfamily.fun` opens the testnet app (`frontend/app.html`, rewrites in `vercel.json`).
 
-- Players enter their X username and sign a message with their wallet (no gas). Points belong to the wallet.
-- Up to nine quests, 500 points each, done in order; the current one is always on top:
-  - X: follow, turn on notifications, like, repost, reply (the reply text is the player's own). These are self-reported: X's API can't confirm them without a paid plan, and notifications can't be checked at all.
-  - Testnet: launch a token, buy, sell, trade a graduated token on nullswap. These are checked on-chain (the transaction hash over RPC right after a trade, otherwise the wallet's history on Blockscout).
-- After the X quests the page sends players to the testnet, carrying their session over. The testnet app shows a points pill and awards testnet quests automatically after each confirmed transaction.
-- One X username per wallet and one wallet per X username.
+- **Homepage, no wallet:** players enter their X username and do the X quests (follow, turn on notifications, like, repost, reply; the reply text is their own). Progress is saved under the username, so it survives switching browsers or devices. These quests are self-reported: X's API can't confirm them without a paid plan, and notifications can't be checked at all.
+- **Then the testnet:** after the last X quest the page sends players to `testnet.nullfamily.fun/?xu=<username>`. The app shows their points straight away; connecting a wallet and signing a free message saves them to that wallet. On phones without a wallet the button opens the testnet in MetaMask with the username carried over.
+- **Testnet quests** (launch, buy, sell, trade a graduated token on nullswap) are checked on-chain right after each confirmed transaction (by tx hash over RPC, otherwise the wallet's history on Blockscout).
+- Every quest is worth 500 points, done in order. One X username per wallet and one wallet per X username; X quests finished after linking go straight to the linked wallet.
 
-Backend: Vercel functions in `api/` (`config`, `login`, `me`, `x`, `task`, `points`, `leaderboard`), shared code in `lib/points.js`, storage in Upstash Redis (connect it under Vercel → Storage; the `KV_REST_API_*` variables are picked up automatically).
+Backend: Vercel functions in `api/` (`config`, `xprogress`, `login`, `me`, `x`, `task`, `points`, `leaderboard`), shared code in `lib/points.js`, storage in Upstash Redis (connected under Vercel → Storage; the `KV_REST_API_*` variables are picked up automatically).
 
-Settings: the X account and post go in `lib/quest-config.js`, or in the `X_HANDLE` / `X_POST_ID` environment variables. Without an X account the quests page shows "opening soon" and the testnet app hides its points UI; without a post the like / repost / reply quests point at the X profile (players use the latest post) until one is added.
+Settings: the X account and post go in `lib/quest-config.js`, or in the `X_HANDLE` / `X_POST_ID` environment variables. Without an X account the quests page shows "opening soon" and the testnet app hides its points UI; without a post the like / repost / reply quests point at the X profile until one is added.
 
 Local run (points in memory): `node scripts/dev-server.js 8095`, then open `http://localhost:8095` (quests) and `http://testnet.localhost:8095` (testnet app).
 

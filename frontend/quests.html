@@ -55,6 +55,10 @@
   .done .ck { width:22px; height:22px; flex:none; border-radius:50%; background:#1c2410; color:var(--acc); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; }
   .done .t { flex:1; min-width:0; color:var(--mut); }
   .done .p { font:600 13px ui-monospace, Menlo, monospace; color:var(--acc); }
+  .who { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:-4px 0 14px; font-size:13px; color:var(--mut); }
+  .who b { color:var(--txt); font-family:ui-monospace, Menlo, monospace; }
+  .after { display:flex; gap:12px; align-items:center; padding:12px 16px; margin-top:12px; border:1px dashed var(--line); border-radius:12px; color:var(--mut); font-size:13px; }
+  .after .p { margin-left:auto; font:600 13px ui-monospace, Menlo, monospace; white-space:nowrap; }
   .sec { margin:26px 0 10px; font-size:12px; color:var(--mut); text-transform:uppercase; letter-spacing:.06em; }
   .cta { display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; background:linear-gradient(135deg,#151b0a,#0f1210); border-color:#2b3a12; }
   .cta h3 { margin:0 0 2px; font-size:17px; }
@@ -65,12 +69,6 @@
   td.pts { text-align:right; font-family:ui-monospace, Menlo, monospace; font-weight:600; }
   tr.me td { color:var(--acc); }
   .note { background:var(--card2); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--mut); }
-  .wallet { position:relative; }
-  .wmenu { position:absolute; right:0; top:calc(100% + 8px); background:var(--card); border:1px solid var(--line); border-radius:12px; padding:6px; min-width:190px; display:none; z-index:12; box-shadow:0 10px 30px rgba(0,0,0,.45); }
-  .wmenu.open { display:block; }
-  .wmenu button { display:block; width:100%; text-align:left; background:transparent; color:var(--txt); font-weight:600; padding:10px 12px; border-radius:8px; }
-  .wmenu button:hover { background:var(--card2); }
-  .wmenu button.danger { color:var(--red); }
   #toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#1a1e23; border:1px solid var(--line); padding:11px 16px; border-radius:10px; display:none; max-width:92%; z-index:20; }
   footer { max-width:720px; margin:30px auto 40px; padding:18px 24px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:10px 22px; justify-content:space-between; color:var(--mut); font-size:13px; }
   footer .links { display:flex; flex-wrap:wrap; gap:8px 18px; }
@@ -80,23 +78,19 @@
 <body>
 <header>
   <a class="logo" href="/">null<b>_</b></a>
-  <div class="row">
-    <a class="btn ghost sm" id="hdrTest" href="#" target="_self">Testnet →</a>
-    <div class="wallet"><button class="sm" id="wbtn">Connect wallet</button>
-      <div class="wmenu" id="wmenu"><button id="wCopy">Copy address</button><button id="wOut" class="danger">Sign out</button></div></div>
-  </div>
+  <a class="btn ghost sm" id="hdrTest" href="#">Testnet →</a>
 </header>
 
 <main>
   <section class="hero">
     <h1>earn your <span>spot</span>.</h1>
-    <p id="lead">Finish the quests, earn <b class="mono" style="color:var(--txt)">500</b> points each, then try the null testnet. Points are tracked per wallet ahead of the launch on Zero.</p>
+    <p id="lead">Do the X quests here, then try the null testnet. Every quest is worth <b class="mono" style="color:var(--txt)">500</b> points. No wallet needed on this page: your points travel with you to the testnet.</p>
   </section>
 
   <div class="stats">
     <div class="stat"><div class="k">Your points</div><div class="v acc" id="sPts">0</div></div>
-    <div class="stat"><div class="k">Rank</div><div class="v" id="sRank">—</div></div>
-    <div class="stat"><div class="k">Quests</div><div class="v" id="sDone">0/0</div></div>
+    <div class="stat"><div class="k">X quests</div><div class="v" id="sDone">0/0</div></div>
+    <div class="stat"><div class="k">Players</div><div class="v" id="sPlayers">—</div></div>
   </div>
 
   <div id="stage"><div class="card mut">Loading…</div></div>
@@ -115,90 +109,31 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 const fmt = (n) => Number(n || 0).toLocaleString("en-US");
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
 function toast(m, ms = 4500) { const t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = "none"), ms); }
+const normHandle = (raw) => { const v = String(raw || "").trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?#]/)[0]; return /^[A-Za-z0-9_]{1,15}$/.test(v) ? v : null; };
 
-let CONF = null, ME = null, TOKEN = store.get("null_qt"), opened = new Set(), busy = false, justFinishedX = false, countdown = null;
+// CONF: quest config. P: progress for the X username on this device ({ username, done, linked }).
+let CONF = null, P = null, opened = new Set(), busy = false, countdown = null, fresh = null;
 
-async function api(path, opts = {}) {
-  const headers = { "content-type": "application/json" };
-  if (TOKEN) headers.authorization = "Bearer " + TOKEN;
-  const r = await fetch("/api/" + path, { method: opts.body ? "POST" : "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+async function api(path, body) {
+  const r = await fetch("/api/" + path, { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
   let j = {}; try { j = await r.json(); } catch {}
-  if (r.status === 401 && TOKEN) signOut(true);
   if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
   return j;
 }
 
-// ---------------------------------------------------------------- wallet sign-in
-const utf8hex = (s) => "0x" + [...new TextEncoder().encode(s)].map((b) => b.toString(16).padStart(2, "0")).join("");
-async function signIn() {
-  if (!window.ethereum) throw new Error("No wallet found.");
-  const [acct] = await window.ethereum.request({ method: "eth_requestAccounts" });
-  const { message, issuedAt } = await api("login?address=" + acct);
-  const signature = await window.ethereum.request({ method: "personal_sign", params: [utf8hex(message), acct] });
-  const r = await api("login", { body: { address: acct, issuedAt, signature } });
-  TOKEN = r.token; store.set("null_qt", TOKEN);
-  ME = r.profile;
-}
-function signOut(quiet) {
-  TOKEN = null; ME = null; store.set("null_qt", null);
-  $("wmenu").classList.remove("open");
-  if (!quiet) toast("Signed out.");
-  render();
-}
-window.ethereum?.on?.("accountsChanged", (accs) => { if (ME && (!accs || !accs[0] || accs[0].toLowerCase() !== ME.address)) signOut(true); });
-
-$("wbtn").onclick = async (e) => {
-  e.stopPropagation();
-  if (ME) return $("wmenu").classList.toggle("open");
-  document.querySelector("#handle input")?.focus();
-  if (!document.querySelector("#handle input")) startFlow();
-};
-document.addEventListener("click", () => $("wmenu").classList.remove("open"));
-$("wCopy").onclick = async () => { try { await navigator.clipboard.writeText(ME.address); toast("Address copied."); } catch { toast(ME.address); } };
-$("wOut").onclick = () => signOut();
-
-async function startFlow() {
-  if (busy) return;
-  const input = document.querySelector("#handle input");
-  const raw = input ? input.value.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?#]/)[0] : "";
-  const err = $("startErr");
-  if (input && !/^[A-Za-z0-9_]{1,15}$/.test(raw)) { err.textContent = "Enter your X username (letters, numbers and _ only, up to 15)."; input.focus(); return; }
-  if (!window.ethereum) { if (err) err.textContent = "Open this page in a wallet browser to continue (see below)."; return; }
-  busy = true; setStartBusy(true);
-  try {
-    if (!TOKEN) await signIn();
-    if (raw && !ME.x) ME = await api("x", { body: { username: raw } });
-    render();
-    refreshBoard();
-  } catch (e) {
-    const m = e?.code === 4001 ? "Signature rejected in the wallet." : e.message;
-    if ($("startErr")) $("startErr").textContent = m; else toast(m);
-  } finally { busy = false; setStartBusy(false); }
-}
-function setStartBusy(on) { const b = $("startBtn"); if (b) { b.disabled = on; b.textContent = on ? "Check your wallet…" : (TOKEN ? "Save & start" : "Connect wallet & start"); } }
-function noWalletMsg() {
-  const dapp = encodeURIComponent(location.host + location.pathname);
-  return `No wallet found in this browser. On a phone, open this page inside your wallet app: <a href="https://metamask.app.link/dapp/${dapp}">MetaMask</a> · <a href="https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(location.href)}">Coinbase Wallet</a>, or use Rabby / MetaMask on desktop.`;
-}
-
-// ---------------------------------------------------------------- quests
+const xTasks = () => (CONF?.tasks || []).filter((t) => t.kind === "x");
+const chainTasks = () => (CONF?.tasks || []).filter((t) => t.kind === "chain");
 const testnetUrl = () => (CONF?.testnet?.url || "https://testnet.nullfamily.fun");
-const testnetLink = () => (TOKEN ? testnetUrl() + "/?qs=" + encodeURIComponent(TOKEN) : testnetUrl());
+const testnetLink = () => (P ? testnetUrl() + "/?xu=" + encodeURIComponent(P.username) : testnetUrl());
 
 function render() {
-  const tasks = CONF?.tasks || [];
-  const done = ME ? ME.done : [];
-  $("sPts").textContent = fmt(ME?.points || 0);
-  $("sRank").textContent = ME?.rank ? "#" + fmt(ME.rank) : "—";
-  $("sDone").textContent = `${done.length}/${tasks.length}`;
-  $("wbtn").textContent = ME ? short(ME.address) : "Connect wallet";
-  $("wbtn").className = ME ? "sm ghost mono" : "sm";
+  const xs = xTasks(), done = P ? P.done : [];
+  $("sPts").textContent = fmt(done.length * (CONF?.pointsPerTask || 500));
+  $("sDone").textContent = `${done.length}/${xs.length}`;
   for (const id of ["hdrTest", "fTest"]) $(id).href = testnetLink();
-
   const stage = $("stage");
   if (!CONF) return;
   if (!CONF.ready) {
@@ -206,39 +141,39 @@ function render() {
     $("doneWrap").style.display = "none";
     return;
   }
-  if (!ME || !ME.x) return renderStart();
+  if (!P) return renderStart();
 
-  const next = tasks.find((t) => !done.includes(t.id));
-  const xLeft = tasks.filter((t) => t.kind === "x" && !done.includes(t.id)).length;
-  let html = "";
-  if (!xLeft) html += `<div class="card cta enter" style="margin-bottom:14px"><div><h3>${next ? "X quests complete" : "All quests complete"} <span class="badge">+${fmt(tasks.filter((t) => t.kind === "x").length * CONF.pointsPerTask)}</span></h3><div class="mut">${next ? `Now try the testnet. Every testnet quest is worth another ${fmt(CONF.pointsPerTask)}.` : "You're all set. Keep trading on the testnet."}${countdown !== null ? ` <span id="cd">Opening in ${countdown}…</span> <a href="#" id="stay">Stay here</a>` : ""}</div></div><a class="btn" href="${esc(testnetLink())}">Go to testnet →</a></div>`;
-  if (next) {
-    const i = tasks.indexOf(next), x = next.kind === "x";
-    const ready = !x || opened.has(next.id);
+  const next = xs.find((t) => !done.includes(t.id));
+  const pts = CONF.pointsPerTask, chainPts = chainTasks().length * pts;
+  let html = `<div class="who"><span>Questing as <b>@${esc(P.username)}</b></span><a href="#" id="change">Not you?</a></div>`;
+  if (!next) {
+    html += `<div class="card cta enter"><div><h3>X quests complete <span class="badge">+${fmt(done.length * pts)}</span></h3><div class="mut">Your points are coming with you. On the testnet, connect your wallet to save them, then earn ${fmt(chainPts)} more.${countdown !== null ? ` <span id="cd">Opening in ${countdown}…</span> <a href="#" id="stay">Stay here</a>` : ""}</div></div><a class="btn" href="${esc(testnetLink())}">Go to testnet →</a></div>`;
+  } else {
+    const i = xs.indexOf(next), ready = opened.has(next.id);
     html += `<div class="card quest enter" id="q">
-      <div class="row wrap"><span class="badge">Quest ${i + 1} of ${tasks.length}</span><span class="badge mutd">+${fmt(CONF.pointsPerTask)} pts</span>${x ? "" : '<span class="badge mutd">testnet</span>'}</div>
+      <div class="row wrap"><span class="badge">Quest ${i + 1} of ${xs.length}</span><span class="badge mutd">+${fmt(pts)} pts</span></div>
       <h2>${esc(next.title)}</h2>
       ${next.hint ? `<div class="mut">${esc(next.hint)}</div>` : ""}
       <div class="acts">
-        <a class="btn" id="qGo" href="${esc(x ? next.url : testnetLink())}" target="_blank" rel="noopener">${esc(next.cta)} ↗</a>
-        <button class="ghost" id="qDone" ${ready ? "" : "disabled"}>${x ? "Done" : "Verify"}</button>
+        <a class="btn" id="qGo" href="${esc(next.url)}" target="_blank" rel="noopener">${esc(next.cta)} ↗</a>
+        <button class="ghost" id="qDone" ${ready ? "" : "disabled"}>Done</button>
       </div>
       <div class="err" id="qErr"></div>
-      <div class="mut" style="margin-top:6px">${x ? (ready ? "Did it? Tap <b>Done</b>." : "Do it on X first, then come back and tap <b>Done</b>.") : "Do it on the testnet with this wallet, then tap <b>Verify</b>."}</div>
+      <div class="mut" style="margin-top:6px">${ready ? "Did it? Tap <b>Done</b>." : "Do it on X first, then come back and tap <b>Done</b>."}</div>
     </div>`;
-    const left = tasks.length - i - 1;
-    if (left) html += `<div class="mut" style="text-align:center;margin-top:10px">${left} more quest${left > 1 ? "s" : ""} after this one</div>`;
   }
+  if (chainTasks().length) html += `<div class="after"><span>${next ? "Then on the testnet" : "Next, on the testnet"}: launch, buy, sell and trade on nullswap</span><span class="p">+${fmt(chainPts)}</span></div>`;
   stage.innerHTML = html;
 
+  $("change").onclick = (e) => { e.preventDefault(); P = null; store.set("null_xu", null); clearInterval(window._cdT); countdown = null; render(); };
   if ($("qGo")) $("qGo").onclick = () => { opened.add(next.id); setTimeout(render, 400); };
   if ($("qDone")) $("qDone").onclick = () => complete(next);
   if ($("stay")) $("stay").onclick = (e) => { e.preventDefault(); clearInterval(window._cdT); countdown = null; render(); };
 
-  const doneTasks = done.map((id) => tasks.find((t) => t.id === id)).filter(Boolean).reverse();
+  const doneTasks = done.map((id) => xs.find((t) => t.id === id)).filter(Boolean).reverse();
   $("doneWrap").style.display = doneTasks.length ? "" : "none";
-  $("doneList").innerHTML = doneTasks.map((t, k) => `<div class="item ${k === 0 && render.fresh === t.id ? "flash" : ""}"><span class="ck">✓</span><span class="t">${esc(t.title)}</span><span class="p">+${fmt(CONF.pointsPerTask)}</span></div>`).join("");
-  render.fresh = null;
+  $("doneList").innerHTML = doneTasks.map((t, k) => `<div class="item ${k === 0 && fresh === t.id ? "flash" : ""}"><span class="ck">✓</span><span class="t">${esc(t.title)}</span><span class="p">+${fmt(pts)}</span></div>`).join("");
+  fresh = null;
 }
 
 function renderStart() {
@@ -246,37 +181,47 @@ function renderStart() {
   $("stage").innerHTML = `<div class="card quest enter">
     <div class="row wrap"><span class="badge">Start here</span></div>
     <h2>What's your X username?</h2>
-    <div class="mut" style="margin-bottom:14px">We link it to your wallet so your points have a home. Signing in is a free message signature: no transaction, no gas.</div>
+    <div class="mut" style="margin-bottom:14px">Your quests and points are saved under it. Already started on another device? Enter the same username to pick up where you left off.</div>
     <label for="hIn">X username</label>
-    <div class="handle" id="handle"><span>@</span><input id="hIn" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="yourname" value="${esc(ME?.x || store.get("null_qx") || "")}" /></div>
-    <div class="acts" style="display:flex;margin-top:14px"><button id="startBtn" style="flex:1">${TOKEN ? "Save & start" : "Connect wallet & start"}</button></div>
-    <div class="err" id="startErr"></div>${window.ethereum ? "" : `<div class="note" style="margin-top:10px">${noWalletMsg()}</div>`}
+    <div class="handle"><span>@</span><input id="hIn" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="yourname" value="${esc(store.get("null_xu") || "")}" /></div>
+    <div class="acts" style="display:flex;margin-top:14px"><button id="startBtn" style="flex:1">Start quests</button></div>
+    <div class="err" id="startErr"></div>
   </div>`;
   const inp = $("hIn");
-  inp.oninput = () => { store.set("null_qx", inp.value.trim()); $("startErr").textContent = ""; };
-  inp.onkeydown = (e) => { if (e.key === "Enter") startFlow(); };
-  $("startBtn").onclick = startFlow;
+  inp.oninput = () => { $("startErr").textContent = ""; };
+  inp.onkeydown = (e) => { if (e.key === "Enter") start(); };
+  $("startBtn").onclick = start;
+}
+
+async function start() {
+  if (busy) return;
+  const h = normHandle($("hIn").value);
+  if (!h) { $("startErr").textContent = "Enter your X username (letters, numbers and _ only, up to 15)."; $("hIn").focus(); return; }
+  busy = true; $("startBtn").disabled = true; $("startBtn").textContent = "Loading…";
+  try {
+    P = await api("xprogress?u=" + encodeURIComponent(h));
+    store.set("null_xu", P.username);
+    render();
+  } catch (e) { $("startErr").textContent = e.message; }
+  finally { busy = false; if ($("startBtn")) { $("startBtn").disabled = false; $("startBtn").textContent = "Start quests"; } }
 }
 
 async function complete(task) {
   if (busy) return;
   busy = true;
   const btn = $("qDone"), err = $("qErr");
-  btn.disabled = true; btn.textContent = task.kind === "x" ? "Saving…" : "Checking…"; err.textContent = "";
+  btn.disabled = true; btn.textContent = "Saving…"; err.textContent = "";
   try {
-    const wasXLeft = CONF.tasks.some((t) => t.kind === "x" && !ME.done.includes(t.id));
-    ME = await api("task", { body: { id: task.id } });
-    render.fresh = task.id;
+    P = await api("xprogress", { username: P.username, id: task.id });
+    fresh = task.id;
     toast(`+${fmt(CONF.pointsPerTask)} points · ${task.title}`);
-    const xLeft = CONF.tasks.some((t) => t.kind === "x" && !ME.done.includes(t.id));
-    if (wasXLeft && !xLeft) startCountdown();
+    if (xTasks().every((t) => P.done.includes(t.id))) startCountdown();
     busy = false;
     render();
-    refreshBoard();
   } catch (e) {
     busy = false;
     err.textContent = e.message;
-    btn.disabled = false; btn.textContent = task.kind === "x" ? "Done" : "Verify";
+    btn.disabled = false; btn.textContent = "Done";
   }
 }
 
@@ -293,22 +238,24 @@ function startCountdown() {
 
 async function refreshBoard() {
   try {
-    const { rows } = await api("leaderboard");
+    const { rows, players } = await api("leaderboard");
+    $("sPlayers").textContent = fmt(players);
     if (!rows.length) { $("boardWrap").style.display = "none"; return; }
-    const mine = ME ? short(ME.address) : "";
-    $("board").innerHTML = rows.map((r) => `<tr class="${r.address === mine ? "me" : ""}"><td class="n">${r.rank}</td><td>${r.x ? "@" + esc(r.x) : '<span class="mono">' + esc(r.address) + "</span>"}</td><td class="pts">${fmt(r.points)}</td></tr>`).join("");
+    const me = P ? P.username.toLowerCase() : "";
+    $("board").innerHTML = rows.map((r) => `<tr class="${r.x && r.x.toLowerCase() === me ? "me" : ""}"><td class="n">${r.rank}</td><td>${r.x ? "@" + esc(r.x) : '<span class="mono">' + esc(r.address) + "</span>"}</td><td class="pts">${fmt(r.points)}</td></tr>`).join("");
     $("boardWrap").style.display = "";
   } catch { $("boardWrap").style.display = "none"; }
 }
 
 // Returning from X: re-render so the Done button reflects the click.
-document.addEventListener("visibilitychange", () => { if (!document.hidden && ME) render(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && P) render(); });
 
 (async function init() {
   try {
     CONF = await api("config");
     if (CONF.xHandle) { $("fX").href = "https://x.com/" + CONF.xHandle; $("fX").style.display = ""; }
-    if (TOKEN) { try { ME = await api("me"); } catch { ME = null; } }
+    const saved = store.get("null_xu");
+    if (saved && CONF.ready) { try { P = await api("xprogress?u=" + encodeURIComponent(saved)); } catch { P = null; } }
     render();
     refreshBoard();
   } catch (e) {

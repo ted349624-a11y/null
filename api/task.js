@@ -21,10 +21,6 @@ module.exports = P.handler(async (req, res) => {
     if (!ok) { try { ok = (await P.walletTxs(a)).some(task.check); } catch {} }
     if (!ok) throw P.fail(400, `No matching ${P.TESTNET.chainName} transaction from this wallet yet. It can take a minute to show up — try again shortly.`);
   }
-  const first = await P.redis(["HSETNX", `u:${a}`, `t:${id}`, String(Date.now())]);
-  if (Number(first) === 1) {
-    await P.redis(["HINCRBY", `u:${a}`, "points", P.POINTS_PER_TASK]);
-    await P.redis(["ZINCRBY", "lb", P.POINTS_PER_TASK, a]);
-  }
+  await P.completeTask(a, id);
   P.send(res, 200, await P.getProfile(a));
 });
