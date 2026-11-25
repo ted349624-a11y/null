@@ -215,26 +215,42 @@ $("launchBtn").onclick = async () => {
 
 // ---------------- token page ----------------
 let mode = "buy";
+const withTimeout = (pr, ms) => Promise.race([pr, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+async function logProviders() {
+  // Public RPCs often restrict eth_getLogs. Prefer the user's wallet RPC, then configured fallbacks.
+  const list = [];
+  if (window.ethereum && account) {
+    try { const bp = new ethers.BrowserProvider(window.ethereum); if (Number((await bp.getNetwork()).chainId) === CFG.chainId) list.push(bp); } catch {}
+  }
+  for (const u of CFG.logRpcUrls || []) list.push(new ethers.JsonRpcProvider(u, CFG.chainId, { staticNetwork: true }));
+  list.push(rp);
+  return list;
+}
+async function fetchTrades(prov, token, graduated) {
+  const latest = await prov.getBlockNumber();
+  const floor = Math.max(CFG.deployBlock || 0, latest - 200000);
+  const CHUNK = 9000, rows = [];
+  const tradeTopic = padR.interface.getEvent("Trade").topicHash, swapTopic = swapR.interface.getEvent("Swap").topicHash, tok = ethers.zeroPadValue(token, 32);
+  for (let to = latest; to >= floor && rows.length < 25; to -= CHUNK + 1) {
+    const from = Math.max(floor, to - CHUNK);
+    const [c, s] = await Promise.all([
+      prov.getLogs({ address: CFG.launchpad, topics: [tradeTopic, tok], fromBlock: from, toBlock: to }),
+      graduated ? prov.getLogs({ address: CFG.swap, topics: [swapTopic, tok], fromBlock: from, toBlock: to }) : [],
+    ]);
+    rows.push(...c.map(l => ({ l, e: padR.interface.parseLog(l), venue: "curve" })), ...s.map(l => ({ l, e: swapR.interface.parseLog(l), venue: "pool" })));
+  }
+  return rows;
+}
 async function recentTrades(token, graduated) {
-  // Public RPCs cap eth_getLogs ranges, so scan backwards in chunks until we have enough rows.
-  try {
-    const latest = await rp.getBlockNumber();
-    const floor = Math.max(CFG.deployBlock || 0, latest - 200000);
-    const CHUNK = 9000, rows = [];
-    const tradeTopic = padR.interface.getEvent("Trade").topicHash, swapTopic = swapR.interface.getEvent("Swap").topicHash, tok = ethers.zeroPadValue(token, 32);
-    for (let to = latest; to >= floor && rows.length < 25; to -= CHUNK + 1) {
-      const from = Math.max(floor, to - CHUNK);
-      const [c, s] = await Promise.all([
-        rp.getLogs({ address: CFG.launchpad, topics: [tradeTopic, tok], fromBlock: from, toBlock: to }),
-        graduated ? rp.getLogs({ address: CFG.swap, topics: [swapTopic, tok], fromBlock: from, toBlock: to }) : [],
-      ]);
-      rows.push(...c.map(l => ({ l, e: padR.interface.parseLog(l), venue: "curve" })), ...s.map(l => ({ l, e: swapR.interface.parseLog(l), venue: "pool" })));
-    }
-    rows.sort((a, b) => b.l.blockNumber - a.l.blockNumber || b.l.index - a.l.index);
-    if (!rows.length) return '<div class="mut">No trades yet.</div>';
-    return `<table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${rows.slice(0, 25).map(({ l, e, venue }) =>
-      `<tr><td>${addrLink(e.args.trader)}</td><td class="${e.args.isBuy ? "g" : "r"}">${e.args.isBuy ? "Buy" : "Sell"}</td><td>${num(e.args.nativeAmount, 6)}</td><td>${compact(e.args.tokenAmount)}</td><td class="mut">${venue}</td><td>${txLink(l.transactionHash)}</td></tr>`).join("")}</table>`;
-  } catch { return '<div class="mut">Could not load trades from this RPC.</div>'; }
+  let rows = null;
+  for (const prov of await logProviders()) {
+    try { rows = await withTimeout(fetchTrades(prov, token, graduated), 10000); break; } catch {}
+  }
+  if (!rows) return '<div class="mut">Trade history is unavailable right now. Connect your wallet to load it through your wallet\'s RPC.</div>';
+  rows.sort((a, b) => b.l.blockNumber - a.l.blockNumber || b.l.index - a.l.index);
+  if (!rows.length) return '<div class="mut">No trades yet.</div>';
+  return `<table><tr><th>Trader</th><th>Side</th><th>${SYM}</th><th>Tokens</th><th>Venue</th><th>Tx</th></tr>${rows.slice(0, 25).map(({ l, e, venue }) =>
+    `<tr><td>${addrLink(e.args.trader)}</td><td class="${e.args.isBuy ? "g" : "r"}">${e.args.isBuy ? "Buy" : "Sell"}</td><td>${num(e.args.nativeAmount, 6)}</td><td>${compact(e.args.tokenAmount)}</td><td class="mut">${venue}</td><td>${txLink(l.transactionHash)}</td></tr>`).join("")}</table>`;
 }
 
 async function showDetail(a) {

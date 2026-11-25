@@ -17,7 +17,7 @@ const { ethers, network } = require("hardhat");
 const CHAINS = {
   zeroTestnet: { name: "Zero Testnet", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "" },
   zero: { name: "Zero", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "https://explorer.zero.layerzero.network", mainnet: true },
-  base: { name: "Base", symbol: "ETH", explorer: "https://basescan.org", quickBuys: ["0.001", "0.005", "0.01", "0.05"], mainnet: true },
+  base: { name: "Base", symbol: "ETH", explorer: "https://basescan.org", quickBuys: ["0.001", "0.005", "0.01", "0.05"], logRpcUrls: ["https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.llamarpc.com"], mainnet: true },
   localhost: { name: "Localhost", symbol: "ETH", explorer: "" },
   hardhat: { name: "Hardhat", symbol: "ETH", explorer: "" },
 };
@@ -61,7 +61,7 @@ async function main() {
   fs.mkdirSync(path.join(__dirname, "../deployments"), { recursive: true });
   fs.writeFileSync(path.join(__dirname, `../deployments/${network.name}.json`), JSON.stringify(out, null, 2));
 
-  const cfg = { chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545", nativeSymbol: chain.symbol, explorer: chain.explorer, quickBuys: chain.quickBuys || ["0.1", "0.5", "1", "2"], launchpad, swap };
+  const cfg = { chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545", nativeSymbol: chain.symbol, explorer: chain.explorer, quickBuys: chain.quickBuys || ["0.1", "0.5", "1", "2"], logRpcUrls: chain.logRpcUrls || [], launchpad, swap };
   cfg.deployBlock = block;
   fs.writeFileSync(path.join(__dirname, "../frontend/config.js"), `window.NULL_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`);
   console.log(out);
