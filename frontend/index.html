@@ -52,6 +52,12 @@
   .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; } @media(max-width:600px){ .stats{grid-template-columns:1fr 1fr;} }
   table { width:100%; border-collapse:collapse; font-size:13px; } td, th { padding:7px 6px; border-bottom:1px solid var(--line); text-align:left; } th { color:var(--mut); font-weight:500; }
   .g { color:var(--grn); } .r { color:var(--red); }
+  .wallet { position:relative; }
+  .wmenu { position:absolute; right:0; top:calc(100% + 8px); background:var(--card); border:1px solid var(--line); border-radius:12px; padding:6px; min-width:200px; display:none; z-index:12; box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .wmenu.open { display:block; }
+  .wmenu button { display:block; width:100%; text-align:left; background:transparent; color:var(--txt); font-weight:600; padding:10px 12px; border-radius:8px; }
+  .wmenu button:hover { background:var(--card2); }
+  .wmenu button.danger { color:var(--red); }
   .modal { position:fixed; inset:0; background:rgba(0,0,0,.65); display:none; align-items:flex-start; justify-content:center; z-index:10; overflow:auto; padding:40px 16px; }
   .modal .card { width:100%; max-width:620px; }
   .pills { display:flex; gap:6px; flex-wrap:wrap; } .pills button { padding:5px 10px; font-size:12px; }
@@ -61,7 +67,8 @@
 <body>
 <header>
   <div class="logo" onclick="location.hash=''">null<b>_</b></div>
-  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="openLaunch">+ Launch</button><button id="connect" class="sm">Connect wallet</button></div>
+  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="openLaunch">+ Launch</button><div class="wallet"><button id="connect" class="sm">Connect wallet</button>
+    <div class="wmenu" id="wmenu"><button id="wCopy">Copy address</button><button id="wExplorer">View on explorer</button><button id="wDisconnect" class="danger">Disconnect</button></div></div></div>
 </header>
 
 <main>
@@ -155,7 +162,24 @@ function errMsg(e) {
 }
 
 // ---------------- wallet ----------------
+const DISC_KEY = "null_disconnected";
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+function setDisconnectedUI() {
+  signer = null; account = null;
+  $("connect").textContent = "Connect wallet";
+  $("wmenu").classList.remove("open");
+  $("adminBtn").style.display = "none";
+}
+async function disconnect() {
+  store.set(DISC_KEY, "1");
+  // Wallets that support it (MetaMask, Rabby, …) drop this site's permission; others just forget the session here.
+  try { await window.ethereum?.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] }); } catch {}
+  setDisconnectedUI();
+  toast("Wallet disconnected.");
+  route();
+}
 async function connect() {
+  store.set(DISC_KEY, null);
   if (!window.ethereum) return toast("No EVM wallet found. Install MetaMask or Rabby.");
   await window.ethereum.request({ method: "eth_requestAccounts" });
   const hex = "0x" + CFG.chainId.toString(16);
@@ -171,7 +195,10 @@ async function connect() {
   refreshAdminButton();
 }
 async function need() { if (!signer) await connect(); if (!signer) throw new Error("Wallet not connected"); return signer; }
-window.ethereum?.on?.("accountsChanged", () => { signer = null; account = null; $("connect").textContent = "Connect wallet"; connect().then(route).catch(() => {}); });
+window.ethereum?.on?.("accountsChanged", (accs) => {
+  if (store.get(DISC_KEY) === "1" || !accs || !accs.length) { setDisconnectedUI(); route(); return; }
+  signer = null; account = null; connect().then(route).catch(() => {});
+});
 window.ethereum?.on?.("chainChanged", () => location.reload());
 
 // ---------------- home ----------------
@@ -431,10 +458,18 @@ function route() {
   if (ethers.isAddress(h) && !NOT_DEPLOYED) showDetail(h).catch(e => { toast(errMsg(e)); });
   else { clearInterval(tickTimer); $("detail").style.display = "none"; $("home").style.display = "block"; loadList().catch(e => { $("list").innerHTML = `<div class="card mut">Could not reach ${esc(CFG.chainName)} RPC. ${esc(errMsg(e))}</div>`; }); }
 }
-$("connect").onclick = () => connect().then(route).catch(e => toast(errMsg(e)));
+$("connect").onclick = (e) => {
+  e.stopPropagation();
+  if (account) { $("wmenu").classList.toggle("open"); return; }
+  connect().then(route).catch(err => toast(errMsg(err)));
+};
+$("wCopy").onclick = () => { $("wmenu").classList.remove("open"); try { navigator.clipboard.writeText(account); toast("Address copied"); } catch { toast(account, 8000); } };
+$("wExplorer").onclick = () => { $("wmenu").classList.remove("open"); if (CFG.explorer) window.open(`${CFG.explorer}/address/${account}`, "_blank", "noopener"); else toast(account, 8000); };
+$("wDisconnect").onclick = () => disconnect();
+document.addEventListener("click", (e) => { if (!e.target.closest(".wallet")) $("wmenu").classList.remove("open"); });
 $("net").textContent = `${CFG.chainName} · ${CFG.chainId}`;
 window.addEventListener("hashchange", route);
-if (window.ethereum) window.ethereum.request({ method: "eth_accounts" }).then(acc => { if (acc && acc.length) connect().then(route).catch(() => {}); }).catch(() => {});
+if (window.ethereum && store.get(DISC_KEY) !== "1") window.ethereum.request({ method: "eth_accounts" }).then(acc => { if (acc && acc.length) connect().then(route).catch(() => {}); }).catch(() => {});
 route();
 </script>
 </body>
