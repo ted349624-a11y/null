@@ -61,6 +61,16 @@ Base parameters for new launches: virtual reserve 1.68 ETH (graduates at ~4.19 E
 
 Graduates into Uniswap V2 on Base (factory `0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6`, router `0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24`). Live-tested on 2026-11-25: a test token launched at a ~$3 threshold graduated into pair [`0xB0D0f1EdCfff1Ce173467A960547110EFe82F533`](https://basescan.org/address/0xB0D0f1EdCfff1Ce173467A960547110EFe82F533) with its LP burned, then traded on Uniswap.
 
+**Testnet (nullswap generation) on Base Sepolia** — live at [testnet.nullfamily.fun](https://testnet.nullfamily.fun), all source-verified:
+
+| Contract | Address |
+|---|---|
+| NullLaunchpad2 | [`0x5e5cF3b8a1d0B99fEaf33B985552270B28674393`](https://sepolia.basescan.org/address/0x5e5cF3b8a1d0B99fEaf33B985552270B28674393#code) |
+| NullSwapFactory | [`0x96D15c886ecD1CD2e362D6F4169928dd63af9DE2`](https://sepolia.basescan.org/address/0x96D15c886ecD1CD2e362D6F4169928dd63af9DE2#code) |
+| NullSwapRouter | [`0xf5551CD1bc1c69C8fC43D11f602032A8F5972A68`](https://sepolia.basescan.org/address/0xf5551CD1bc1c69C8fC43D11f602032A8F5972A68#code) |
+
+Testnet parameters: virtual reserve 0.0168 ETH (graduates at ~0.042 ETH), migration fee 0.0001 ETH. Live-tested end to end, including graduation into nullswap and pool-fee payouts.
+
 An earlier Base deployment (`0x625Cd5Bb…4859`, own AMM instead of Uniswap) is retired.
 
 ### Verifying contracts
