@@ -115,7 +115,7 @@ function toast(m, ms = 4500) { const t = $("toast"); t.textContent = m; t.style.
 const normHandle = (raw) => { const v = String(raw || "").trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?#]/)[0]; return /^[A-Za-z0-9_]{1,15}$/.test(v) ? v : null; };
 
 // CONF: quest config. P: progress for the X username on this device ({ username, done, linked }).
-let CONF = null, P = null, opened = new Set(), busy = false, countdown = null, fresh = null;
+let CONF = null, P = null, opened = new Set(), busy = false, fresh = null;
 
 async function api(path, body) {
   const r = await fetch("/api/" + path, { method: body ? "POST" : "GET", headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
@@ -147,7 +147,7 @@ function render() {
   const pts = CONF.pointsPerTask, chainPts = chainTasks().length * pts;
   let html = `<div class="who"><span>Questing as <b>@${esc(P.username)}</b></span><a href="#" id="change">Not you?</a></div>`;
   if (!next) {
-    html += `<div class="card cta enter"><div><h3>X quests complete <span class="badge">+${fmt(done.length * pts)}</span></h3><div class="mut">Your points are coming with you. On the testnet, connect your wallet to save them, then earn ${fmt(chainPts)} more.${countdown !== null ? ` <span id="cd">Opening in ${countdown}…</span> <a href="#" id="stay">Stay here</a>` : ""}</div></div><a class="btn" href="${esc(testnetLink())}">Go to testnet →</a></div>`;
+    html += `<div class="card cta enter"><div><h3>X quests complete <span class="badge">+${fmt(done.length * pts)}</span></h3><div class="mut">Your points are coming with you. On the testnet, connect your wallet to save them, then earn ${fmt(chainPts)} more.</div></div><a class="btn" href="${esc(testnetLink())}">Go to testnet →</a></div>`;
   } else {
     const i = xs.indexOf(next), ready = opened.has(next.id);
     html += `<div class="card quest enter" id="q">
@@ -165,10 +165,9 @@ function render() {
   if (chainTasks().length) html += `<div class="after"><span>${next ? "Then on the testnet" : "Next, on the testnet"}: launch, buy, sell and trade on nullswap</span><span class="p">+${fmt(chainPts)}</span></div>`;
   stage.innerHTML = html;
 
-  $("change").onclick = (e) => { e.preventDefault(); P = null; store.set("null_xu", null); clearInterval(window._cdT); countdown = null; render(); };
+  $("change").onclick = (e) => { e.preventDefault(); P = null; store.set("null_xu", null); render(); };
   if ($("qGo")) $("qGo").onclick = () => { opened.add(next.id); setTimeout(render, 400); };
   if ($("qDone")) $("qDone").onclick = () => complete(next);
-  if ($("stay")) $("stay").onclick = (e) => { e.preventDefault(); clearInterval(window._cdT); countdown = null; render(); };
 
   const doneTasks = done.map((id) => xs.find((t) => t.id === id)).filter(Boolean).reverse();
   $("doneWrap").style.display = doneTasks.length ? "" : "none";
@@ -215,7 +214,6 @@ async function complete(task) {
     P = await api("xprogress", { username: P.username, id: task.id });
     fresh = task.id;
     toast(`+${fmt(CONF.pointsPerTask)} points · ${task.title}`);
-    if (xTasks().every((t) => P.done.includes(t.id))) startCountdown();
     busy = false;
     render();
   } catch (e) {
@@ -223,17 +221,6 @@ async function complete(task) {
     err.textContent = e.message;
     btn.disabled = false; btn.textContent = "Done";
   }
-}
-
-function startCountdown() {
-  countdown = 5;
-  clearInterval(window._cdT);
-  window._cdT = setInterval(() => {
-    if (countdown === null) return clearInterval(window._cdT);
-    countdown -= 1;
-    if (countdown <= 0) { clearInterval(window._cdT); location.href = testnetLink(); return; }
-    const el = $("cd"); if (el) el.textContent = `Opening in ${countdown}…`;
-  }, 1000);
 }
 
 async function refreshBoard() {

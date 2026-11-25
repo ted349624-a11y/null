@@ -132,7 +132,7 @@ npm run serve
 `nullfamily.fun` opens on the quests page (`frontend/quests.html`); `testnet.nullfamily.fun` opens the testnet app (`frontend/app.html`, rewrites in `vercel.json`).
 
 - **Homepage, no wallet:** players enter their X username and do the X quests (follow, turn on notifications, like, repost, reply; the reply text is their own). Progress is saved under the username, so it survives switching browsers or devices. These quests are self-reported: X's API can't confirm them without a paid plan, and notifications can't be checked at all.
-- **Then the testnet:** after the last X quest the page sends players to `testnet.nullfamily.fun/?xu=<username>`. The app shows their points straight away; connecting a wallet and signing a free message saves them to that wallet. On phones without a wallet the button opens the testnet in MetaMask with the username carried over.
+- **Then the testnet:** after the last X quest a "Go to testnet" button takes players to `testnet.nullfamily.fun/?xu=<username>`. The app shows their points straight away; connecting a wallet and signing a free message saves them to that wallet. On phones without a wallet the button opens the testnet in MetaMask with the username carried over.
 - **Testnet quests** (launch, buy, sell, trade a graduated token on nullswap) are checked on-chain right after each confirmed transaction (by tx hash over RPC, otherwise the wallet's history on Blockscout).
 - Every quest is worth 500 points, done in order. One X username per wallet and one wallet per X username; X quests finished after linking go straight to the linked wallet.
 
