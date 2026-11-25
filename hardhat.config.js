@@ -14,6 +14,11 @@ module.exports = {
       chainId: 43002,
       accounts: PK,
     },
+    base: {
+      url: process.env.BASE_RPC_URL || "https://mainnet.base.org",
+      chainId: 8453,
+      accounts: PK,
+    },
     zero: {
       url: process.env.ZERO_RPC_URL || "https://rudolph.zero.layerzero.network",
       chainId: 33002,

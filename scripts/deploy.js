@@ -8,13 +8,16 @@
 //   LAUNCH_FEE          [0]      native fee to create a token
 //   MIGRATION_FEE       [0.01]   native taken from the curve at graduation
 //   FEE_RECIPIENT       [deployer]
+//   OWNER               [deployer]  ownership is transferred here right after deployment
+//   CONFIRM_MAINNET=1   required on mainnet networks (base, zero)
 const fs = require("fs");
 const path = require("path");
 const { ethers, network } = require("hardhat");
 
 const CHAINS = {
   zeroTestnet: { name: "Zero Testnet", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "" },
-  zero: { name: "Zero", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "https://explorer.zero.layerzero.network" },
+  zero: { name: "Zero", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "https://explorer.zero.layerzero.network", mainnet: true },
+  base: { name: "Base", symbol: "ETH", explorer: "https://basescan.org", quickBuys: ["0.001", "0.005", "0.01", "0.05"], mainnet: true },
   localhost: { name: "Localhost", symbol: "ETH", explorer: "" },
   hardhat: { name: "Hardhat", symbol: "ETH", explorer: "" },
 };
@@ -31,6 +34,9 @@ async function main() {
     feeRecipient: process.env.FEE_RECIPIENT || deployer.address,
   };
   const chain = CHAINS[network.name] || { name: network.name, symbol: "ETH", explorer: "" };
+  if (chain.mainnet && process.env.CONFIRM_MAINNET !== "1") throw new Error(`${network.name} is a mainnet. Re-run with CONFIRM_MAINNET=1.`);
+  const owner = process.env.OWNER || deployer.address;
+  if (!ethers.isAddress(owner) || !ethers.isAddress(p.feeRecipient)) throw new Error("OWNER / FEE_RECIPIENT must be valid addresses.");
   const bal = await ethers.provider.getBalance(deployer.address);
   console.log(`Network ${network.name} | deployer ${deployer.address} | balance ${ethers.formatEther(bal)} ${chain.symbol}`);
 
@@ -40,18 +46,22 @@ async function main() {
   await pad.waitForDeployment();
   const launchpad = await pad.getAddress();
   const swap = await pad.swap();
+  if (owner.toLowerCase() !== deployer.address.toLowerCase()) {
+    await (await pad.transferOwnership(owner)).wait();
+    console.log(`Ownership transferred to ${owner}`);
+  }
   const { chainId } = await ethers.provider.getNetwork();
   const block = await ethers.provider.getBlockNumber();
 
   const out = {
-    network: network.name, chainId: Number(chainId), launchpad, swap, deployBlock: block,
+    network: network.name, chainId: Number(chainId), launchpad, swap, deployBlock: block, owner: await pad.owner(),
     params: Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v.toString()])),
     deployedAt: new Date().toISOString(),
   };
   fs.mkdirSync(path.join(__dirname, "../deployments"), { recursive: true });
   fs.writeFileSync(path.join(__dirname, `../deployments/${network.name}.json`), JSON.stringify(out, null, 2));
 
-  const cfg = { chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545", nativeSymbol: chain.symbol, explorer: chain.explorer, launchpad, swap };
+  const cfg = { chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545", nativeSymbol: chain.symbol, explorer: chain.explorer, quickBuys: chain.quickBuys || ["0.1", "0.5", "1", "2"], launchpad, swap };
   cfg.deployBlock = block;
   fs.writeFileSync(path.join(__dirname, "../frontend/config.js"), `window.NULL_CONFIG = ${JSON.stringify(cfg, null, 2)};\n`);
   console.log(out);

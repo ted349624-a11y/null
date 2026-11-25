@@ -34,9 +34,10 @@ async function main() {
   info(`launch fee ${fmt(launchFee)} | graduation target ~${fmt(target)}`);
 
   // 1. launch with a small opening buy (exempt from opening tax)
-  const unit = startBal / 200n > ethers.parseEther("0.01") ? ethers.parseEther("0.01") : startBal / 200n;
+  const cap = ethers.parseEther(process.env.SMOKE_AMOUNT || "0.01");
+  const unit = startBal / 200n > cap ? cap : startBal / 200n;
   const meta = { image: "", description: "smoke test", website: "", twitter: "", telegram: "" };
-  const rc = await (await pad.createToken("Smoke Test", "SMOKE", meta, 100, ethers.ZeroAddress, 0, { value: launchFee + unit })).wait();
+  const rc = await (await pad.createToken(process.env.SMOKE_NAME || "Smoke Test", process.env.SMOKE_SYMBOL || "SMOKE", meta, 100, ethers.ZeroAddress, 0, { value: launchFee + unit })).wait();
   const ev = rc.logs.map((l) => { try { return pad.interface.parseLog(l); } catch { return null; } }).find((e) => e && e.name === "TokenLaunched");
   check(!!ev, `token launched (gas used ${rc.gasUsed})`);
   const tokenAddr = ev.args.token;
