@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>null — launch anything</title>
+<script>/* the app page only runs as the testnet now; elsewhere send visitors there */ if (!location.hostname.startsWith("testnet.") && new URLSearchParams(location.search).get("net") !== "testnet" && !/^(localhost|127\.)/.test(location.hostname)) location.replace("https://testnet.nullfamily.fun/" + location.hash);</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308090b'/%3E%3Crect x='8' y='22' width='16' height='4' fill='%23c6ff3d'/%3E%3C/svg%3E" />
 <style>
   :root { --bg:#08090b; --card:#111316; --card2:#0c0e10; --line:#1f2328; --txt:#eceff1; --mut:#7d8790; --acc:#c6ff3d; --accTxt:#0d1400; --red:#ff5d6c; --grn:#4ade80; }

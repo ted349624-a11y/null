@@ -21,7 +21,6 @@ http.createServer(async (req, res) => {
   }
   let p = url.pathname;
   if (p === "/") p = host.startsWith("testnet.") ? "/app.html" : "/quests.html";
-  else if (p === "/app") p = "/app.html";
   const file = path.join(root, path.normalize(p).replace(/^(\.\.[/\\])+/, ""));
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.statusCode = 404; return res.end("not found"); }
   res.setHeader("content-type", types[path.extname(file)] || "application/octet-stream");

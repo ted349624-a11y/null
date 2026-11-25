@@ -5,14 +5,15 @@ module.exports = P.handler(async (req, res) => {
   const a = P.readToken(req);
   if (!a) throw P.fail(401, "Sign in again");
   const { id, tx } = await P.body(req);
-  const idx = P.TASKS.findIndex((t) => t.id === id);
+  const tasks = P.TASKS;
+  const idx = tasks.findIndex((t) => t.id === id);
   if (idx < 0) throw P.fail(400, "Unknown task");
   const profile = await P.getProfile(a);
   if (!profile.x) throw P.fail(400, "Add your X username first.");
   if (profile.done.includes(id)) return P.send(res, 200, profile);
-  const next = P.TASKS.find((t) => !profile.done.includes(t.id));
+  const next = tasks.find((t) => !profile.done.includes(t.id));
   if (!next || next.id !== id) throw P.fail(400, "Finish the tasks in order.");
-  const task = P.TASKS[idx];
+  const task = tasks[idx];
   if (!P.publicConfig().ready) throw P.fail(503, "Quests open soon.");
   if (task.kind === "chain") {
     let ok = false;
