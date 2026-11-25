@@ -144,11 +144,12 @@
 <script src="./abi.js"></script>
 <script src="./config.js"></script>
 <script src="./config.testnet.js"></script>
+<script src="./config.mainnet.js"></script>
 <script>
 const ABI = window.NULL_ABI, { ethers } = window;
 // testnet.<domain> (or ?net=testnet) runs the testnet deployment; everything else runs mainnet.
 const IS_TESTNET = location.hostname.startsWith("testnet.") || new URLSearchParams(location.search).get("net") === "testnet";
-const CFG = (IS_TESTNET ? (window.NULL_CONFIGS || {}).testnet : window.NULL_CONFIG) || { chainId: 84532, chainName: "Base Sepolia", rpcUrl: "https://sepolia.base.org", nativeSymbol: "ETH", explorer: "", launchpad: "", testnet: true };
+const CFG = (IS_TESTNET ? (window.NULL_CONFIGS || {}).testnet : ((window.NULL_CONFIGS || {}).mainnet || window.NULL_CONFIG)) || { chainId: 84532, chainName: "Base Sepolia", rpcUrl: "https://sepolia.base.org", nativeSymbol: "ETH", explorer: "", launchpad: "", testnet: true };
 const IS_V2 = CFG.version === "v2"; // v2 = graduates into nullswap (null's own AMM); v1 = Uniswap V2
 const PAD_ABI = IS_V2 ? ABI.launchpad2 : ABI.launchpad;
 const TOKEN_ABI = IS_V2 ? ABI.token2 : ABI.token;

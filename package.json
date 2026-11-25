@@ -16,7 +16,9 @@
     "deploy:base": "CONFIRM_MAINNET=1 hardhat run scripts/deploy.js --network base",
     "smoke:base": "SMOKE_AMOUNT=0.0001 hardhat run scripts/smoke.js --network base",
     "deploy2:local": "hardhat run scripts/deploy2.js --network localhost",
-    "smoke2:local": "hardhat run scripts/smoke2.js --network localhost"
+    "smoke2:local": "hardhat run scripts/smoke2.js --network localhost",
+    "deploy2:base": "CONFIRM_MAINNET=1 hardhat run scripts/deploy2.js --network base",
+    "smoke2:base": "SMOKE_AMOUNT=0.0001 hardhat run scripts/smoke2.js --network base"
   },
   "keywords": [],
   "author": "",

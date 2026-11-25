@@ -89,10 +89,11 @@ async function main() {
     version: "v2", chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545",
     nativeSymbol: chain.symbol, explorer: chain.explorer, quickBuys: chain.quickBuys || ["0.1", "0.5", "1", "2"],
     logRpcUrls: chain.logRpcUrls || [], logApi: chain.logApi || "", links: chain.links || {}, faucets: chain.faucets || [],
-    testnet: !chain.mainnet, launchpad, swapRouter: routerAddr, swapFactory: factory, weth, deployBlock: block,
+    testnet: !chain.mainnet && !process.env.CONFIG_SLOT, launchpad, swapRouter: routerAddr, swapFactory: factory, weth, deployBlock: block,
   };
-  const file = path.join(__dirname, `../frontend/config.${chain.slot}.js`);
-  fs.writeFileSync(file, `window.NULL_CONFIGS = window.NULL_CONFIGS || {};\nwindow.NULL_CONFIGS[${JSON.stringify(chain.slot)}] = ${JSON.stringify(cfg, null, 2)};\n`);
+  const slot = process.env.CONFIG_SLOT || chain.slot; // e.g. CONFIG_SLOT=mainnet to rehearse the mainnet site locally
+  const file = path.join(__dirname, `../frontend/config.${slot}.js`);
+  fs.writeFileSync(file, `window.NULL_CONFIGS = window.NULL_CONFIGS || {};\nwindow.NULL_CONFIGS[${JSON.stringify(slot)}] = ${JSON.stringify(cfg, null, 2)};\n`);
   console.log(out);
   console.log(`${path.relative(process.cwd(), file)} written.`);
 }
