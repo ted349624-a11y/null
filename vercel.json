@@ -18,5 +18,13 @@
       "source": "/",
       "destination": "/quests.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/hidden.js": {
+      "maxDuration": 30
+    },
+    "api/history.js": {
+      "maxDuration": 30
+    }
+  }
 }

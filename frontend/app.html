@@ -392,12 +392,25 @@ async function ptsAfterTx(hash) {
 }
 
 // ---------------- home ----------------
+// Testnet: tokens launched by bot wallet chains are kept off the list (see /api/hidden). Fails open.
+let hiddenSet = null, hiddenAt = 0, showHidden = false;
+async function loadHidden() {
+  if (!CFG.testnet) return new Set();
+  if (hiddenSet && Date.now() - hiddenAt < 60000) return hiddenSet;
+  try { const r = await withTimeout(fetch("/api/hidden").then(x => x.ok ? x.json() : Promise.reject()), 15000); hiddenSet = new Set((r.hidden || []).map(a => a.toLowerCase())); hiddenAt = Date.now(); }
+  catch { hiddenSet = hiddenSet || new Set(); }
+  return hiddenSet;
+}
 async function loadList() {
   if (NOT_DEPLOYED) { $("list").innerHTML = COMING_SOON; return; }
   const n = await padR.tokenCount();
   if (n === 0n) { $("list").innerHTML = '<div class="card mut">No tokens yet. Be the first — hit <b>+ Launch</b>.</div>'; return; }
-  let items = await padR.getLaunches(0, 100);
-  items = [...items];
+  const hidden = await loadHidden();
+  let items = [], skipped = 0;
+  for (let off = 0n; off < n && items.length < 100 && off < 500n; off += 100n) { // newest first; page past hidden ones
+    for (const v of await padR.getLaunches(off, 100n)) { if (!showHidden && hidden.has(v.token.toLowerCase())) skipped++; else items.push(v); }
+  }
+  items = items.slice(0, 100);
   if (sortBy === "mcap") items.sort((a, b) => (b.price > a.price ? 1 : -1));
   if (sortBy === "prog") items = items.filter(i => !i.launch.graduated).sort((a, b) => Number(b.progressBps - a.progressBps));
   $("list").innerHTML = items.map(v => {
@@ -409,6 +422,9 @@ async function loadList() {
         ${l.graduated ? '<span class="badge">graduated</span>' : v.openingTaxBps > 0n ? '<span class="badge warn">new</span>' : l.creatorTaxBps > 0 ? `<span class="badge mutd">tax ${Number(l.creatorTaxBps) / 100}%</span>` : ""}</div>
       <div class="bar"><i style="width:${prog}%"></i></div></div></div>`;
   }).join("") || '<div class="card mut">Nothing here.</div>';
+  const nHidden = showHidden ? [...hidden].length : skipped;
+  if (nHidden) $("list").insertAdjacentHTML("beforeend", `<div class="mut" style="grid-column:1/-1;text-align:center;font-size:13px;padding:6px 0">${showHidden ? `Showing ${nHidden} tokens from bot wallets · <a href="#" id="toggleHidden">hide them</a>` : `${nHidden} tokens from bot wallets are hidden · <a href="#" id="toggleHidden">show</a>`}</div>`);
+  if ($("toggleHidden")) $("toggleHidden").onclick = (e) => { e.preventDefault(); showHidden = !showHidden; loadList().catch(() => {}); };
   document.querySelectorAll(".tok").forEach(el => el.onclick = () => { location.hash = el.dataset.a; });
 }
 document.querySelectorAll("#sort button").forEach(b => b.onclick = () => { sortBy = b.dataset.s; document.querySelectorAll("#sort button").forEach(x => x.classList.toggle("on", x === b)); document.querySelectorAll("#sort button").forEach(x => x.style.borderColor = x === b ? "var(--acc)" : ""); loadList(); });
