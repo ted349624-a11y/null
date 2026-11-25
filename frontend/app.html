@@ -70,13 +70,22 @@
   .modal .card { width:100%; max-width:620px; }
   .pills button.on { border-color:var(--acc); color:var(--acc); }
   .pills { display:flex; gap:6px; flex-wrap:wrap; } .pills button { padding:5px 10px; font-size:12px; }
+  .qcur { border:1px solid var(--acc); border-radius:12px; padding:14px; margin-top:14px; box-shadow:0 0 0 1px rgba(198,255,61,.1); }
+  .qlist { margin-top:14px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .qlist .it { display:flex; gap:10px; align-items:center; padding:10px 14px; border-top:1px solid var(--line); font-size:14px; }
+  .qlist .it:first-child { border-top:0; }
+  .qlist .ic { width:20px; height:20px; flex:none; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; background:#1a1d21; color:var(--mut); }
+  .qlist .it.ok .ic { background:#1c2410; color:var(--acc); } .qlist .it.ok .tt { color:var(--mut); }
+  .qlist .it.now .ic { background:var(--acc); color:var(--accTxt); }
+  .qlist .tt { flex:1; min-width:0; } .qlist .pp { font:600 12px ui-monospace, Menlo, monospace; color:var(--mut); } .qlist .it.ok .pp { color:var(--acc); }
+  @media(max-width:600px){ #ptsBtn .lbl { display:none; } }
   .note { background:var(--card2); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--mut); }
 </style>
 </head>
 <body>
 <header>
   <div class="logo" onclick="location.hash=''">null<b>_</b></div>
-  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="openLaunch">+ Launch</button><div class="wallet"><button id="connect" class="sm">Connect wallet</button>
+  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="ptsBtn" style="display:none" onclick="openQuests()"></button><button class="ghost sm" id="openLaunch">+ Launch</button><div class="wallet"><button id="connect" class="sm">Connect wallet</button>
     <div class="wmenu" id="wmenu"><button id="wCopy">Copy address</button><button id="wExplorer">View on explorer</button><button id="wDisconnect" class="danger">Disconnect</button></div></div></div>
 </header>
 
@@ -137,6 +146,12 @@
     <div class="row sp"><span class="mut" id="aFees"></span><button class="ghost sm" id="aWithdraw">Withdraw</button></div>
   </div>
 </div>
+<div class="modal" id="questModal">
+  <div class="card">
+    <div class="row sp"><h2 style="margin:0">Testnet points</h2><button class="ghost sm" onclick="closeQuests()">✕</button></div>
+    <div id="questBody"></div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script src="./ethers.umd.min.js"></script>
@@ -146,6 +161,8 @@
 <script src="./config.testnet.js"></script>
 <script src="./config.mainnet.js"></script>
 <script>
+// The quests page hands its points session over in ?qs=…; keep it and clean the URL right away.
+(() => { try { const u = new URL(location.href), t = u.searchParams.get("qs"); if (t) { localStorage.setItem("null_qt", t); u.searchParams.delete("qs"); history.replaceState(null, "", u.pathname + u.search + u.hash); } } catch {} })();
 const ABI = window.NULL_ABI, { ethers } = window;
 // testnet.<domain> (or ?net=testnet) runs the testnet deployment; everything else runs mainnet.
 const IS_TESTNET = location.hostname.startsWith("testnet.") || new URLSearchParams(location.search).get("net") === "testnet";
@@ -195,6 +212,7 @@ function setDisconnectedUI() {
   $("connect").textContent = "Connect wallet";
   $("wmenu").classList.remove("open");
   $("adminBtn").style.display = "none";
+  if (PTS_ON) { PTS.me = null; ptsPill(); }
 }
 async function disconnect() {
   store.set(DISC_KEY, "1");
@@ -219,6 +237,7 @@ async function connect() {
   account = await signer.getAddress();
   $("connect").textContent = short(account);
   refreshAdminButton();
+  ptsRefresh();
 }
 async function need() { if (!signer) await connect(); if (!signer) throw new Error("Wallet not connected"); return signer; }
 window.ethereum?.on?.("accountsChanged", (accs) => {
@@ -226,6 +245,95 @@ window.ethereum?.on?.("accountsChanged", (accs) => {
   signer = null; account = null; connect().then(route).catch(() => {});
 });
 window.ethereum?.on?.("chainChanged", () => location.reload());
+
+// ---------------- points (testnet only) ----------------
+// Quests are worth points (see /api). Testnet quests are checked on-chain right after each launch/trade.
+const PTS_ON = IS_TESTNET, PTS_KEY = "null_qt";
+const PTS = { conf: null, me: null };
+const fmtInt = (n) => Number(n || 0).toLocaleString("en-US");
+async function ptsApi(path, body) {
+  const headers = { "content-type": "application/json" }, t = store.get(PTS_KEY);
+  if (t) headers.authorization = "Bearer " + t;
+  const r = await fetch("/api/" + path, { method: body ? "POST" : "GET", headers, body: body ? JSON.stringify(body) : undefined });
+  let j = {}; try { j = await r.json(); } catch {}
+  if (r.status === 401) { store.set(PTS_KEY, null); PTS.me = null; }
+  if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
+  return j;
+}
+async function ptsRefresh() {
+  if (!PTS_ON) return;
+  try { if (!PTS.conf) PTS.conf = await ptsApi("config"); } catch {}
+  if (!PTS.conf?.ready) return; // quests not open yet
+  $("ptsBtn").style.display = "";
+  if (!$("ptsBar") && $("testnetBar").style.display !== "none") $("testnetBar").insertAdjacentHTML("beforeend", ' · <a href="#" id="ptsBar" onclick="openQuests();return false">◆ Earn points</a>');
+  PTS.me = store.get(PTS_KEY) ? await ptsApi("me").catch(() => null) : null;
+  if (PTS.me && account && PTS.me.address !== account.toLowerCase()) PTS.me = null; // session belongs to another wallet
+  ptsPill();
+  if ($("questModal").style.display === "flex") ptsRender();
+}
+function ptsPill() { $("ptsBtn").innerHTML = `<span style="color:var(--acc)">◆</span> ${PTS.me ? `${fmtInt(PTS.me.points)}<span class="lbl"> pts</span>` : '<span class="lbl">Earn </span>points'}`; }
+function openQuests() { $("questModal").style.display = "flex"; ptsRender(); if (!PTS.conf) ptsRefresh(); }
+function closeQuests() { $("questModal").style.display = "none"; }
+$("questModal").onclick = (e) => { if (e.target.id === "questModal") closeQuests(); };
+
+function ptsRender() {
+  const c = PTS.conf, me = PTS.me, b = $("questBody");
+  if (!c) { b.innerHTML = '<div class="mut" style="margin-top:12px">Loading…</div>'; return; }
+  const qUrl = esc(c.questsUrl), qHost = esc(c.questsUrl.replace(/^https?:\/\//, ""));
+  const chain = c.tasks.filter(t => t.kind === "chain"), xs = c.tasks.filter(t => t.kind === "x");
+  if (!me) {
+    b.innerHTML = `<p class="mut" style="margin:12px 0 14px">Every quest is worth <b style="color:var(--txt)">${fmtInt(c.pointsPerTask)}</b> points: launch a token, buy, sell, and trade on nullswap. Sign in with your wallet to track them. It's a free signature, not a transaction.</p>
+      <button id="ptsSign" style="width:100%">${account ? "Sign in with " + short(account) : "Connect wallet & sign in"}</button>
+      <div class="err r" id="ptsErr" style="font-size:13px;margin-top:8px"></div>
+      <div class="mut" style="margin-top:8px">New here? Start with the X quests at <a href="${qUrl}">${qHost}</a>.</div>`;
+    $("ptsSign").onclick = ptsSignIn;
+    return;
+  }
+  const done = me.done, next = c.tasks.find(t => !done.includes(t.id));
+  const xDone = xs.filter(t => done.includes(t.id)).length;
+  let h = `<div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><div class="mut">Points</div><div class="v" style="color:var(--acc)">${fmtInt(me.points)}</div></div><div class="stat"><div class="mut">Rank</div><div class="v">${me.rank ? "#" + fmtInt(me.rank) : "—"}</div></div><div class="stat"><div class="mut">Quests</div><div class="v">${done.length}/${c.tasks.length}</div></div></div>`;
+  if (next && next.kind === "x") {
+    h += `<div class="qcur"><span class="badge">Step 1</span><div style="font-weight:700;font-size:16px;margin:8px 0 4px">Finish the X quests first</div><div class="mut">${xDone} of ${xs.length} done. Testnet quests unlock after them.</div><a href="${qUrl}" style="display:block;margin-top:12px"><button style="width:100%">Open X quests ↗</button></a></div>`;
+  } else if (next) {
+    h += `<div class="qcur"><div class="row wrap" style="gap:6px"><span class="badge">Next quest</span><span class="badge mutd">+${fmtInt(c.pointsPerTask)} pts</span></div>
+      <div style="font-weight:700;font-size:16px;margin:8px 0 4px">${esc(next.title)}</div>${next.hint ? `<div class="mut">${esc(next.hint)}</div>` : ""}
+      <div class="mut" style="margin-top:6px">Points are added automatically after your transaction confirms. Did it already? Check it now:</div>
+      <button id="ptsVerify" class="ghost" style="width:100%;margin-top:10px">Verify</button><div class="r" id="ptsErr" style="font-size:13px;margin-top:8px"></div></div>`;
+  } else {
+    h += `<div class="qcur"><div style="font-weight:700;font-size:16px">All quests complete ✓</div><div class="mut">Nice. Keep launching and trading; more quests are coming.</div></div>`;
+  }
+  const row = (t) => { const ok = done.includes(t.id), now = next && t.id === next.id; return `<div class="it ${ok ? "ok" : now ? "now" : ""}"><span class="ic">${ok ? "✓" : now ? "→" : ""}</span><span class="tt">${esc(t.title)}</span><span class="pp">${ok ? "+" : ""}${fmtInt(c.pointsPerTask)}</span></div>`; };
+  h += `<div class="qlist">${chain.map(row).join("")}<div class="it ${xDone === xs.length ? "ok" : ""}"><span class="ic">${xDone === xs.length ? "✓" : ""}</span><span class="tt">X quests (${xDone}/${xs.length})</span><span class="pp">${xDone === xs.length ? "+" : ""}${fmtInt(xs.length * c.pointsPerTask)}</span></div></div>`;
+  h += `<div class="row sp wrap" style="margin-top:12px"><a href="${qUrl}" class="mut">Leaderboard & all quests ↗</a><span class="mut mono">${short(me.address)}</span></div>`;
+  b.innerHTML = h;
+  if ($("ptsVerify")) $("ptsVerify").onclick = async () => {
+    const btn = $("ptsVerify"); btn.disabled = true; btn.textContent = "Checking…";
+    try { await ptsTry(next, null, true); } catch (e) { const el = $("ptsErr"); if (el) el.textContent = e.message; btn.disabled = false; btn.textContent = "Verify"; }
+  };
+}
+async function ptsSignIn() {
+  try {
+    const s = await need();
+    const { message, issuedAt } = await ptsApi("login?address=" + account);
+    const signature = await s.signMessage(message);
+    const r = await ptsApi("login", { address: account, issuedAt, signature });
+    store.set(PTS_KEY, r.token); PTS.me = r.profile; ptsPill(); ptsRender();
+    ptsAfterTx(null);
+  } catch (e) { const el = $("ptsErr"); const m = errMsg(e); if (el) el.textContent = m; else toast(m); }
+}
+// Completes `task`, then keeps going through any following testnet quests the wallet has already done.
+async function ptsTry(task, hash, loud) {
+  PTS.me = await ptsApi("task", { id: task.id, tx: hash || undefined });
+  toast(`◆ +${fmtInt(PTS.conf.pointsPerTask)} points · ${task.title}`, 6000);
+  ptsPill(); if ($("questModal").style.display === "flex") ptsRender();
+  await ptsAfterTx(hash);
+}
+async function ptsAfterTx(hash) {
+  if (!PTS_ON || !PTS.me || !PTS.conf) return;
+  const next = PTS.conf.tasks.find(t => !PTS.me.done.includes(t.id));
+  if (!next || next.kind !== "chain") return;
+  try { await ptsTry(next, hash); } catch {}
+}
 
 // ---------------- home ----------------
 async function loadList() {
@@ -279,7 +387,7 @@ $("launchBtn").onclick = async () => {
     $("launchBtn").disabled = true; toast("Confirm in your wallet…", 60000);
     const rc = await (await pad.createToken(name, sym, meta, tax, wallet || ethers.ZeroAddress, 0, { value: launchFee + buy })).wait();
     const ev = rc.logs.map(l => { try { return pad.interface.parseLog(l); } catch { return null; } }).find(e => e?.name === "TokenLaunched");
-    toast(`$${sym} is live!`); closeLaunch();
+    toast(`$${sym} is live!`); closeLaunch(); ptsAfterTx(rc.hash);
     ["fName","fSym","fImg","fDesc","fWeb","fX","fTg","fWallet","fBuy"].forEach(i => $(i).value = ""); $("fTax").value = "0";
     location.hash = ev.args.token;
   } catch (e) { toast(errMsg(e)); } finally { $("launchBtn").disabled = false; }
@@ -623,18 +731,19 @@ async function showDetail(a) {
       const q = await quote(x); const min = q * (BPS - slippageBps) / BPS;
       const target = l.graduated ? new ethers.Contract(ROUTER_ADDR, ROUTER_ABI, s) : new ethers.Contract(CFG.launchpad, PAD_ABI, s);
       $("trade").disabled = true;
+      let txHash = null;
       if (mode === "buy") {
         toast("Confirm in your wallet…", 60000);
         const tx = !l.graduated ? await target.buy(a, min, deadline(), { value: x }) : IS_V2 ? await target.swapExactETHForTokens(a, min, account, deadline(), { value: x }) : await target.swapExactETHForTokens(min, [CFG.weth, a], account, deadline(), { value: x });
-        await tx.wait();
+        await tx.wait(); txHash = tx.hash;
       } else {
         const tw = new ethers.Contract(a, TOKEN_ABI, s), spender = await target.getAddress();
         if ((await tw.allowance(account, spender)) < x) { toast("Approve token spending…", 60000); await (await tw.approve(spender, ethers.MaxUint256)).wait(); }
         toast("Confirm in your wallet…", 60000);
         const tx = !l.graduated ? await target.sell(a, x, min, deadline()) : IS_V2 ? await target.swapExactTokensForETH(a, x, min, account, deadline()) : await target.swapExactTokensForETH(x, min, [a, CFG.weth], account, deadline());
-        await tx.wait();
+        await tx.wait(); txHash = tx.hash;
       }
-      toast("Trade confirmed ✅"); showDetail(a);
+      toast("Trade confirmed ✅"); showDetail(a); setTimeout(() => ptsAfterTx(txHash), 1200);
     } catch (e) { toast(errMsg(e)); $("trade").disabled = false; }
   };
   $("claim").onclick = async () => {
@@ -709,6 +818,7 @@ $("footLinks").innerHTML = [
   ROUTER_ADDR && CFG.explorer ? `<a href="${CFG.explorer}/address/${ROUTER_ADDR}" target="_blank" rel="noopener">${IS_V2 ? "nullswap router" : "Uniswap V2 router"}</a>` : "",
 ].filter(Boolean).join("");
 window.addEventListener("hashchange", route);
+ptsRefresh();
 if (window.ethereum && store.get(DISC_KEY) !== "1") window.ethereum.request({ method: "eth_accounts" }).then(acc => { if (acc && acc.length) connect().then(route).catch(() => {}); }).catch(() => {});
 route();
 </script>

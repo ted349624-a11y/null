@@ -127,6 +127,23 @@ npm run deploy:local        # terminal 2
 npm run serve
 ```
 
+## Quests and points
+
+`nullfamily.fun` opens on the quests page (`frontend/quests.html`); the launchpad app lives at `/app`, and `testnet.nullfamily.fun` opens the testnet app directly (rewrites in `vercel.json`).
+
+- Players enter their X username and sign a message with their wallet (no gas). Points belong to the wallet.
+- Nine quests, 500 points each, done in order; the current one is always on top:
+  1–5. X: follow, turn on notifications, like, repost, reply (the reply text is the player's own). These are self-reported: X's API can't confirm them without a paid plan, and notifications can't be checked at all.
+  6–9. Testnet: launch a token, buy, sell, trade a graduated token on nullswap. These are checked on-chain (the transaction hash over RPC right after a trade, otherwise the wallet's history on Blockscout).
+- After the X quests the page sends players to the testnet, carrying their session over. The testnet app shows a points pill and awards testnet quests automatically after each confirmed transaction.
+- One X username per wallet and one wallet per X username.
+
+Backend: Vercel functions in `api/` (`config`, `login`, `me`, `x`, `task`, `points`, `leaderboard`), shared code in `lib/points.js`, storage in Upstash Redis (connect it under Vercel → Storage; the `KV_REST_API_*` variables are picked up automatically).
+
+Settings: the X account and post go in `lib/quest-config.js`, or in the `X_HANDLE` / `X_POST_ID` environment variables. Until both are set, the quests page shows "opening soon" with a link to the testnet, and the testnet app hides its points UI.
+
+Local run (points in memory): `node scripts/dev-server.js 8095`, then open `http://localhost:8095` (quests) and `http://testnet.localhost:8095` (testnet app).
+
 ## Charts and trade history
 
 Token pages show a market-cap candlestick chart (Auto / 1m / 5m / 15m / 1h) and the latest trades from both the bonding curve and the pool. Base's public RPCs refuse wide `eth_getLogs` ranges, so the site reads history from the chain's public Blockscout API (`logApi` in the config; no key, timestamps included) and falls back to the wallet's RPC. Charts use TradingView's open-source [Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0, vendored in `frontend/vendor/` with its license).

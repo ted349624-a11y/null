@@ -32,5 +32,8 @@
     "hardhat": "^2.30.0",
     "solc": "^0.8.24",
     "solc0839": "npm:solc@^0.8.39"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0"
   }
 }

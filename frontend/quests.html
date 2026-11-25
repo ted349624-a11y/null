@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>null — quests</title>
+<meta name="description" content="Complete quests, earn points, and try the null testnet before it launches on Zero." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308090b'/%3E%3Crect x='8' y='22' width='16' height='4' fill='%23c6ff3d'/%3E%3C/svg%3E" />
+<style>
+  :root { --bg:#08090b; --card:#111316; --card2:#0c0e10; --line:#1f2328; --txt:#eceff1; --mut:#7d8790; --acc:#c6ff3d; --accTxt:#0d1400; --red:#ff5d6c; --grn:#4ade80; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--txt); }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  header { position:sticky; top:0; z-index:5; background:rgba(8,9,11,.85); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:space-between; padding:12px 24px; border-bottom:1px solid var(--line); }
+  .logo { font:700 22px/1 ui-monospace, Menlo, monospace; letter-spacing:-.5px; color:var(--txt); }
+  .logo b { color:var(--acc); }
+  a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
+  .logo:hover { text-decoration:none; }
+  main { max-width:720px; margin:0 auto; padding:28px 24px; }
+  button, .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; background:var(--acc); color:var(--accTxt); border:0; border-radius:10px; padding:11px 18px; font-family:inherit; font-size:14px; font-weight:700; line-height:1.2; cursor:pointer; text-decoration:none !important; white-space:nowrap; }
+  .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); font-weight:600; }
+  .ghost:hover { border-color:#2f353c; }
+  .sm { padding:7px 12px; font-size:13px; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .mut { color:var(--mut); font-size:13px; }
+  .row { display:flex; gap:10px; align-items:center; } .wrap { flex-wrap:wrap; } .sp { justify-content:space-between; }
+  .badge { white-space:nowrap; display:inline-block; background:#1c2410; color:var(--acc); padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .badge.mutd { background:#1a1d21; color:var(--mut); }
+  .hero h1 { margin:0 0 8px; font:700 40px/1.05 ui-monospace, Menlo, monospace; letter-spacing:-1.5px; }
+  .hero h1 span { color:var(--acc); }
+  .hero p { margin:0; color:var(--mut); max-width:560px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:22px 0 18px; }
+  .stat { background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .stat .k { font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; }
+  .stat .v { font:700 22px/1.2 ui-monospace, Menlo, monospace; margin-top:2px; }
+  .stat .v.acc { color:var(--acc); }
+  label { display:block; font-size:12px; color:var(--mut); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+  .handle { display:flex; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:0 12px; }
+  .handle:focus-within { border-color:var(--acc); }
+  .handle span { color:var(--mut); font-family:ui-monospace, Menlo, monospace; }
+  .handle input { flex:1; min-width:0; background:transparent; border:0; outline:0; color:var(--txt); padding:12px 4px; font:16px ui-monospace, Menlo, monospace; }
+  .err { color:var(--red); font-size:13px; margin-top:8px; min-height:1px; }
+  .quest { border-color:var(--acc); box-shadow:0 0 0 1px rgba(198,255,61,.12), 0 12px 40px -18px rgba(198,255,61,.35); }
+  .quest h2 { margin:10px 0 4px; font-size:20px; line-height:1.3; }
+  .quest .acts { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .quest .acts > * { flex:1 1 180px; }
+  .enter { animation:enter .35s ease-out; }
+  @keyframes enter { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  .flash { animation:flash 1.2s ease-out; }
+  @keyframes flash { from { background:#1c2410; } to { background:transparent; } }
+  .done { margin-top:14px; padding:6px 0; }
+  .done .item { display:flex; align-items:center; gap:12px; padding:11px 18px; border-top:1px solid var(--line); }
+  .done .item:first-child { border-top:0; }
+  .done .ck { width:22px; height:22px; flex:none; border-radius:50%; background:#1c2410; color:var(--acc); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; }
+  .done .t { flex:1; min-width:0; color:var(--mut); }
+  .done .p { font:600 13px ui-monospace, Menlo, monospace; color:var(--acc); }
+  .sec { margin:26px 0 10px; font-size:12px; color:var(--mut); text-transform:uppercase; letter-spacing:.06em; }
+  .cta { display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; background:linear-gradient(135deg,#151b0a,#0f1210); border-color:#2b3a12; }
+  .cta h3 { margin:0 0 2px; font-size:17px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:9px 4px; border-top:1px solid var(--line); }
+  tr:first-child td { border-top:0; }
+  td.n { width:40px; color:var(--mut); font-family:ui-monospace, Menlo, monospace; }
+  td.pts { text-align:right; font-family:ui-monospace, Menlo, monospace; font-weight:600; }
+  tr.me td { color:var(--acc); }
+  .note { background:var(--card2); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--mut); }
+  .wallet { position:relative; }
+  .wmenu { position:absolute; right:0; top:calc(100% + 8px); background:var(--card); border:1px solid var(--line); border-radius:12px; padding:6px; min-width:190px; display:none; z-index:12; box-shadow:0 10px 30px rgba(0,0,0,.45); }
+  .wmenu.open { display:block; }
+  .wmenu button { display:block; width:100%; text-align:left; background:transparent; color:var(--txt); font-weight:600; padding:10px 12px; border-radius:8px; }
+  .wmenu button:hover { background:var(--card2); }
+  .wmenu button.danger { color:var(--red); }
+  #toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#1a1e23; border:1px solid var(--line); padding:11px 16px; border-radius:10px; display:none; max-width:92%; z-index:20; }
+  footer { max-width:720px; margin:30px auto 40px; padding:18px 24px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:10px 22px; justify-content:space-between; color:var(--mut); font-size:13px; }
+  footer .links { display:flex; flex-wrap:wrap; gap:8px 18px; }
+  @media(max-width:600px){ header{padding:10px 14px;} main{padding:20px 16px;} .hero h1{font-size:30px;} .stat .v{font-size:18px;} .stat{padding:10px;} }
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="/">null<b>_</b></a>
+  <div class="row">
+    <a class="btn ghost sm" id="hdrTest" href="#" target="_self">Testnet →</a>
+    <div class="wallet"><button class="sm" id="wbtn">Connect wallet</button>
+      <div class="wmenu" id="wmenu"><button id="wCopy">Copy address</button><button id="wOut" class="danger">Sign out</button></div></div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <h1>earn your <span>spot</span>.</h1>
+    <p id="lead">Finish the quests, earn <b class="mono" style="color:var(--txt)">500</b> points each, then try the null testnet. Points are tracked per wallet ahead of the launch on Zero.</p>
+  </section>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Your points</div><div class="v acc" id="sPts">0</div></div>
+    <div class="stat"><div class="k">Rank</div><div class="v" id="sRank">—</div></div>
+    <div class="stat"><div class="k">Quests</div><div class="v" id="sDone">0/0</div></div>
+  </div>
+
+  <div id="stage"><div class="card mut">Loading…</div></div>
+  <div id="doneWrap" style="display:none"><div class="sec">Completed</div><div class="card done" id="doneList"></div></div>
+
+  <div id="boardWrap" style="display:none"><div class="sec">Leaderboard</div><div class="card" style="padding:8px 18px"><table id="board"></table></div></div>
+</main>
+
+<footer>
+  <div class="links"><a id="fTest" href="#">Testnet app</a><a id="fX" href="#" target="_blank" rel="noopener" style="display:none">X</a><a href="/app">Base app</a></div>
+  <div>X quests are self-reported. Testnet quests are checked on-chain.</div>
+</footer>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+const fmt = (n) => Number(n || 0).toLocaleString("en-US");
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+function toast(m, ms = 4500) { const t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = "none"), ms); }
+
+let CONF = null, ME = null, TOKEN = store.get("null_qt"), opened = new Set(), busy = false, justFinishedX = false, countdown = null;
+
+async function api(path, opts = {}) {
+  const headers = { "content-type": "application/json" };
+  if (TOKEN) headers.authorization = "Bearer " + TOKEN;
+  const r = await fetch("/api/" + path, { method: opts.body ? "POST" : "GET", headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  let j = {}; try { j = await r.json(); } catch {}
+  if (r.status === 401 && TOKEN) signOut(true);
+  if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+  return j;
+}
+
+// ---------------------------------------------------------------- wallet sign-in
+const utf8hex = (s) => "0x" + [...new TextEncoder().encode(s)].map((b) => b.toString(16).padStart(2, "0")).join("");
+async function signIn() {
+  if (!window.ethereum) throw new Error("No wallet found.");
+  const [acct] = await window.ethereum.request({ method: "eth_requestAccounts" });
+  const { message, issuedAt } = await api("login?address=" + acct);
+  const signature = await window.ethereum.request({ method: "personal_sign", params: [utf8hex(message), acct] });
+  const r = await api("login", { body: { address: acct, issuedAt, signature } });
+  TOKEN = r.token; store.set("null_qt", TOKEN);
+  ME = r.profile;
+}
+function signOut(quiet) {
+  TOKEN = null; ME = null; store.set("null_qt", null);
+  $("wmenu").classList.remove("open");
+  if (!quiet) toast("Signed out.");
+  render();
+}
+window.ethereum?.on?.("accountsChanged", (accs) => { if (ME && (!accs || !accs[0] || accs[0].toLowerCase() !== ME.address)) signOut(true); });
+
+$("wbtn").onclick = async (e) => {
+  e.stopPropagation();
+  if (ME) return $("wmenu").classList.toggle("open");
+  document.querySelector("#handle input")?.focus();
+  if (!document.querySelector("#handle input")) startFlow();
+};
+document.addEventListener("click", () => $("wmenu").classList.remove("open"));
+$("wCopy").onclick = async () => { try { await navigator.clipboard.writeText(ME.address); toast("Address copied."); } catch { toast(ME.address); } };
+$("wOut").onclick = () => signOut();
+
+async function startFlow() {
+  if (busy) return;
+  const input = document.querySelector("#handle input");
+  const raw = input ? input.value.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?#]/)[0] : "";
+  const err = $("startErr");
+  if (input && !/^[A-Za-z0-9_]{1,15}$/.test(raw)) { err.textContent = "Enter your X username (letters, numbers and _ only, up to 15)."; input.focus(); return; }
+  if (!window.ethereum) { if (err) err.textContent = "Open this page in a wallet browser to continue (see below)."; return; }
+  busy = true; setStartBusy(true);
+  try {
+    if (!TOKEN) await signIn();
+    if (raw && !ME.x) ME = await api("x", { body: { username: raw } });
+    render();
+    refreshBoard();
+  } catch (e) {
+    const m = e?.code === 4001 ? "Signature rejected in the wallet." : e.message;
+    if ($("startErr")) $("startErr").textContent = m; else toast(m);
+  } finally { busy = false; setStartBusy(false); }
+}
+function setStartBusy(on) { const b = $("startBtn"); if (b) { b.disabled = on; b.textContent = on ? "Check your wallet…" : (TOKEN ? "Save & start" : "Connect wallet & start"); } }
+function noWalletMsg() {
+  const dapp = encodeURIComponent(location.host + location.pathname);
+  return `No wallet found in this browser. On a phone, open this page inside your wallet app: <a href="https://metamask.app.link/dapp/${dapp}">MetaMask</a> · <a href="https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(location.href)}">Coinbase Wallet</a>, or use Rabby / MetaMask on desktop.`;
+}
+
+// ---------------------------------------------------------------- quests
+const testnetUrl = () => (CONF?.testnet?.url || "https://testnet.nullfamily.fun");
+const testnetLink = () => (TOKEN ? testnetUrl() + "/?qs=" + encodeURIComponent(TOKEN) : testnetUrl());
+
+function render() {
+  const tasks = CONF?.tasks || [];
+  const done = ME ? ME.done : [];
+  $("sPts").textContent = fmt(ME?.points || 0);
+  $("sRank").textContent = ME?.rank ? "#" + fmt(ME.rank) : "—";
+  $("sDone").textContent = `${done.length}/${tasks.length}`;
+  $("wbtn").textContent = ME ? short(ME.address) : "Connect wallet";
+  $("wbtn").className = ME ? "sm ghost mono" : "sm";
+  for (const id of ["hdrTest", "fTest"]) $(id).href = testnetLink();
+
+  const stage = $("stage");
+  if (!CONF) return;
+  if (!CONF.ready) {
+    stage.innerHTML = `<div class="card enter"><span class="badge mutd">Opening soon</span><h2 style="margin:10px 0 4px;font-size:20px">Quests are almost ready</h2><div class="mut">They open here shortly. Meanwhile you can already try the testnet: launch and trade tokens with free test ETH.</div><div style="margin-top:16px"><a class="btn" href="${esc(testnetUrl())}">Open the testnet →</a></div></div>`;
+    $("doneWrap").style.display = "none";
+    return;
+  }
+  if (!ME || !ME.x) return renderStart();
+
+  const next = tasks.find((t) => !done.includes(t.id));
+  const xLeft = tasks.filter((t) => t.kind === "x" && !done.includes(t.id)).length;
+  let html = "";
+  if (!xLeft) html += `<div class="card cta enter" style="margin-bottom:14px"><div><h3>${next ? "X quests complete" : "All quests complete"} <span class="badge">+${fmt(tasks.filter((t) => t.kind === "x").length * CONF.pointsPerTask)}</span></h3><div class="mut">${next ? `Now try the testnet. Every testnet quest is worth another ${fmt(CONF.pointsPerTask)}.` : "You're all set. Keep trading on the testnet."}${countdown !== null ? ` <span id="cd">Opening in ${countdown}…</span> <a href="#" id="stay">Stay here</a>` : ""}</div></div><a class="btn" href="${esc(testnetLink())}">Go to testnet →</a></div>`;
+  if (next) {
+    const i = tasks.indexOf(next), x = next.kind === "x";
+    const ready = !x || opened.has(next.id);
+    html += `<div class="card quest enter" id="q">
+      <div class="row wrap"><span class="badge">Quest ${i + 1} of ${tasks.length}</span><span class="badge mutd">+${fmt(CONF.pointsPerTask)} pts</span>${x ? "" : '<span class="badge mutd">testnet</span>'}</div>
+      <h2>${esc(next.title)}</h2>
+      ${next.hint ? `<div class="mut">${esc(next.hint)}</div>` : ""}
+      <div class="acts">
+        <a class="btn" id="qGo" href="${esc(x ? next.url : testnetLink())}" target="_blank" rel="noopener">${esc(next.cta)} ↗</a>
+        <button class="ghost" id="qDone" ${ready ? "" : "disabled"}>${x ? "Done" : "Verify"}</button>
+      </div>
+      <div class="err" id="qErr"></div>
+      <div class="mut" style="margin-top:6px">${x ? (ready ? "Did it? Tap <b>Done</b>." : "Do it on X first, then come back and tap <b>Done</b>.") : "Do it on the testnet with this wallet, then tap <b>Verify</b>."}</div>
+    </div>`;
+    const left = tasks.length - i - 1;
+    if (left) html += `<div class="mut" style="text-align:center;margin-top:10px">${left} more quest${left > 1 ? "s" : ""} after this one</div>`;
+  }
+  stage.innerHTML = html;
+
+  if ($("qGo")) $("qGo").onclick = () => { opened.add(next.id); setTimeout(render, 400); };
+  if ($("qDone")) $("qDone").onclick = () => complete(next);
+  if ($("stay")) $("stay").onclick = (e) => { e.preventDefault(); clearInterval(window._cdT); countdown = null; render(); };
+
+  const doneTasks = done.map((id) => tasks.find((t) => t.id === id)).filter(Boolean).reverse();
+  $("doneWrap").style.display = doneTasks.length ? "" : "none";
+  $("doneList").innerHTML = doneTasks.map((t, k) => `<div class="item ${k === 0 && render.fresh === t.id ? "flash" : ""}"><span class="ck">✓</span><span class="t">${esc(t.title)}</span><span class="p">+${fmt(CONF.pointsPerTask)}</span></div>`).join("");
+  render.fresh = null;
+}
+
+function renderStart() {
+  $("doneWrap").style.display = "none";
+  $("stage").innerHTML = `<div class="card quest enter">
+    <div class="row wrap"><span class="badge">Start here</span></div>
+    <h2>What's your X username?</h2>
+    <div class="mut" style="margin-bottom:14px">We link it to your wallet so your points have a home. Signing in is a free message signature: no transaction, no gas.</div>
+    <label for="hIn">X username</label>
+    <div class="handle" id="handle"><span>@</span><input id="hIn" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="yourname" value="${esc(ME?.x || store.get("null_qx") || "")}" /></div>
+    <div class="acts" style="display:flex;margin-top:14px"><button id="startBtn" style="flex:1">${TOKEN ? "Save & start" : "Connect wallet & start"}</button></div>
+    <div class="err" id="startErr"></div>${window.ethereum ? "" : `<div class="note" style="margin-top:10px">${noWalletMsg()}</div>`}
+  </div>`;
+  const inp = $("hIn");
+  inp.oninput = () => { store.set("null_qx", inp.value.trim()); $("startErr").textContent = ""; };
+  inp.onkeydown = (e) => { if (e.key === "Enter") startFlow(); };
+  $("startBtn").onclick = startFlow;
+}
+
+async function complete(task) {
+  if (busy) return;
+  busy = true;
+  const btn = $("qDone"), err = $("qErr");
+  btn.disabled = true; btn.textContent = task.kind === "x" ? "Saving…" : "Checking…"; err.textContent = "";
+  try {
+    const wasXLeft = CONF.tasks.some((t) => t.kind === "x" && !ME.done.includes(t.id));
+    ME = await api("task", { body: { id: task.id } });
+    render.fresh = task.id;
+    toast(`+${fmt(CONF.pointsPerTask)} points · ${task.title}`);
+    const xLeft = CONF.tasks.some((t) => t.kind === "x" && !ME.done.includes(t.id));
+    if (wasXLeft && !xLeft) startCountdown();
+    busy = false;
+    render();
+    refreshBoard();
+  } catch (e) {
+    busy = false;
+    err.textContent = e.message;
+    btn.disabled = false; btn.textContent = task.kind === "x" ? "Done" : "Verify";
+  }
+}
+
+function startCountdown() {
+  countdown = 5;
+  clearInterval(window._cdT);
+  window._cdT = setInterval(() => {
+    if (countdown === null) return clearInterval(window._cdT);
+    countdown -= 1;
+    if (countdown <= 0) { clearInterval(window._cdT); location.href = testnetLink(); return; }
+    const el = $("cd"); if (el) el.textContent = `Opening in ${countdown}…`;
+  }, 1000);
+}
+
+async function refreshBoard() {
+  try {
+    const { rows } = await api("leaderboard");
+    if (!rows.length) { $("boardWrap").style.display = "none"; return; }
+    const mine = ME ? short(ME.address) : "";
+    $("board").innerHTML = rows.map((r) => `<tr class="${r.address === mine ? "me" : ""}"><td class="n">${r.rank}</td><td>${r.x ? "@" + esc(r.x) : '<span class="mono">' + esc(r.address) + "</span>"}</td><td class="pts">${fmt(r.points)}</td></tr>`).join("");
+    $("boardWrap").style.display = "";
+  } catch { $("boardWrap").style.display = "none"; }
+}
+
+// Returning from X: re-render so the Done button reflects the click.
+document.addEventListener("visibilitychange", () => { if (!document.hidden && ME) render(); });
+
+(async function init() {
+  try {
+    CONF = await api("config");
+    if (CONF.xHandle) { $("fX").href = "https://x.com/" + CONF.xHandle; $("fX").style.display = ""; }
+    if (TOKEN) { try { ME = await api("me"); } catch { ME = null; } }
+    render();
+    refreshBoard();
+  } catch (e) {
+    $("stage").innerHTML = `<div class="card"><div class="mut">Couldn't load the quests right now. ${esc(e.message)}</div><div style="margin-top:14px"><a class="btn" href="https://testnet.nullfamily.fun">Open the testnet →</a></div></div>`;
+  }
+})();
+</script>
+</body>
+</html>
