@@ -419,11 +419,11 @@ async function loadList() {
       <div class="min0" style="flex:1"><div class="row sp"><b class="ell">${esc(v.name)}</b><span class="mut mono">$${esc(v.symbol)}</span></div>
       <div class="mut ell">${esc(v.meta.description) || "&nbsp;"}</div>
       <div class="row sp"><span class="mut">MC <b style="color:var(--txt)">${compact(mcap)} ${SYM}</b></span>
-        ${l.graduated ? '<span class="badge">graduated</span>' : v.openingTaxBps > 0n ? '<span class="badge warn">new</span>' : l.creatorTaxBps > 0 ? `<span class="badge mutd">tax ${Number(l.creatorTaxBps) / 100}%</span>` : ""}</div>
+        ${showHidden && hidden.has(v.token.toLowerCase()) ? '<span class="badge" style="background:#2a0d10;color:var(--red)">bot</span>' : l.graduated ? '<span class="badge">graduated</span>' : v.openingTaxBps > 0n ? '<span class="badge warn">new</span>' : l.creatorTaxBps > 0 ? `<span class="badge mutd">tax ${Number(l.creatorTaxBps) / 100}%</span>` : ""}</div>
       <div class="bar"><i style="width:${prog}%"></i></div></div></div>`;
   }).join("") || '<div class="card mut">Nothing here.</div>';
   const nHidden = showHidden ? [...hidden].length : skipped;
-  if (nHidden) $("list").insertAdjacentHTML("beforeend", `<div class="mut" style="grid-column:1/-1;text-align:center;font-size:13px;padding:6px 0">${showHidden ? `Showing ${nHidden} tokens from bot wallets · <a href="#" id="toggleHidden">hide them</a>` : `${nHidden} tokens from bot wallets are hidden · <a href="#" id="toggleHidden">show</a>`}</div>`);
+  if (nHidden) $("list").insertAdjacentHTML("beforeend", `<div class="mut" style="grid-column:1/-1;text-align:center;font-size:13px;padding:6px 0">${showHidden ? `${nHidden} tokens from bot wallets are shown, marked <b style="color:var(--red)">BOT</b> · <a href="#" id="toggleHidden">hide them</a>` : `${nHidden} tokens from bot wallets are hidden · <a href="#" id="toggleHidden">show</a>`}</div>`);
   if ($("toggleHidden")) $("toggleHidden").onclick = (e) => { e.preventDefault(); showHidden = !showHidden; loadList().catch(() => {}); };
   document.querySelectorAll(".tok").forEach(el => el.onclick = () => { location.hash = el.dataset.a; });
 }
