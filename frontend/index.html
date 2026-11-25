@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>null — launch anything</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308090b'/%3E%3Crect x='8' y='22' width='16' height='4' fill='%23c6ff3d'/%3E%3C/svg%3E" />
 <style>
   :root { --bg:#08090b; --card:#111316; --card2:#0c0e10; --line:#1f2328; --txt:#eceff1; --mut:#7d8790; --acc:#c6ff3d; --accTxt:#0d1400; --red:#ff5d6c; --grn:#4ade80; }
   * { box-sizing:border-box; }
@@ -40,6 +41,8 @@
   .badge { white-space:nowrap; display:inline-block; background:#1c2410; color:var(--acc); padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
   .badge.warn { background:#2a1a08; color:#ffb347; } .badge.mutd { background:#1a1d21; color:var(--mut); }
   a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
+  header button { white-space:nowrap; }
+  @media(max-width:600px){ #net{display:none;} header{padding:10px 14px;} main{padding:16px;} .hero h1{font-size:28px;} }
   #toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#1a1e23; border:1px solid var(--line); padding:11px 16px; border-radius:10px; display:none; max-width:92%; z-index:20; }
   .hero { display:flex; justify-content:space-between; align-items:end; gap:16px; margin-bottom:22px; flex-wrap:wrap; }
   .hero h1 { margin:0; font:700 34px/1.1 ui-monospace, Menlo, monospace; letter-spacing:-1px; }
@@ -103,6 +106,10 @@
 <script>
 const CFG = window.NULL_CONFIG, ABI = window.NULL_ABI, { ethers } = window;
 const SYM = CFG.nativeSymbol, BPS = 10000n, SUPPLY = 1_000_000_000n * 10n ** 18n;
+const NOT_DEPLOYED = !CFG.launchpad || /^0x0{40}$/i.test(CFG.launchpad);
+const COMING_SOON = `<div class="card" style="grid-column:1/-1;text-align:center;padding:48px 18px">
+  <div class="mono" style="font-size:28px;font-weight:700">coming soon to <span style="color:var(--acc)">${CFG.chainName}</span></div>
+  <div class="mut" style="margin-top:8px">null contracts are not deployed on this network yet. Check back shortly.</div></div>`;
 document.querySelectorAll(".sym").forEach(e => e.textContent = SYM);
 
 const rp = new ethers.JsonRpcProvider(CFG.rpcUrl, CFG.chainId, { staticNetwork: true });
@@ -150,6 +157,7 @@ window.ethereum?.on?.("chainChanged", () => location.reload());
 
 // ---------------- home ----------------
 async function loadList() {
+  if (NOT_DEPLOYED) { $("list").innerHTML = COMING_SOON; return; }
   const n = await padR.tokenCount();
   if (n === 0n) { $("list").innerHTML = '<div class="card mut">No tokens yet. Be the first — hit <b>+ Launch</b>.</div>'; return; }
   let items = await padR.getLaunches(0, 100);
@@ -173,6 +181,7 @@ document.querySelector('#sort button[data-s="new"]').style.borderColor = "var(--
 // ---------------- launch ----------------
 let launchFee = 0n;
 async function openLaunch() {
+  if (NOT_DEPLOYED) return toast(`Launching opens once null is live on ${CFG.chainName}.`);
   $("launchModal").style.display = "flex";
   const [fee, target] = await Promise.all([padR.launchFee(), padR.graduationTarget()]);
   launchFee = fee;
@@ -348,7 +357,7 @@ async function showDetail(a) {
 // ---------------- router ----------------
 function route() {
   const h = location.hash.slice(1);
-  if (ethers.isAddress(h)) showDetail(h).catch(e => { toast(errMsg(e)); });
+  if (ethers.isAddress(h) && !NOT_DEPLOYED) showDetail(h).catch(e => { toast(errMsg(e)); });
   else { clearInterval(tickTimer); $("detail").style.display = "none"; $("home").style.display = "block"; loadList().catch(e => { $("list").innerHTML = `<div class="card mut">Could not reach ${esc(CFG.chainName)} RPC. ${esc(errMsg(e))}</div>`; }); }
 }
 $("connect").onclick = () => connect().then(route).catch(e => toast(errMsg(e)));

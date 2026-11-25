@@ -53,6 +53,8 @@ npm run serve               # http://localhost:8080
 ```
 The frontend is static (`frontend/`), so you can host it as-is on Vercel, Netlify, Cloudflare Pages or IPFS.
 
+**Vercel:** import the repo and deploy. `vercel.json` serves `frontend/` and skips installing the Hardhat toolchain. After every `npm run deploy:testnet`, commit the updated `frontend/config.js` so the site points at the new contracts. Until then the site shows a "coming soon" screen.
+
 **Check RPC access first.** The testnet RPC may be restricted. If this returns `403`, ask LayerZero for testnet access:
 ```bash
 curl -s -X POST https://testnet.zero.layerzero.network -H 'content-type: application/json' \
