@@ -21,7 +21,8 @@ const CHAINS = {
     weth: "0x4200000000000000000000000000000000000006",
     quickBuys: ["0.001", "0.005", "0.01", "0.02"],
     logApi: "https://base-sepolia.blockscout.com/api",
-    faucets: [{"name": "Alchemy", "url": "https://www.alchemy.com/faucets/base-sepolia"}, {"name": "QuickNode", "url": "https://faucet.quicknode.com/base/sepolia", "note": "needs a small mainnet balance"}],
+    faucets: [{"name": "Coinbase Developer Platform", "url": "https://portal.cdp.coinbase.com/products/faucet", "desc": "Base's own faucet. Sign in with a free Coinbase developer account and claim small amounts, up to 0.1 ETH a day.", "tags": ["Free account", "Up to 0.1 ETH a day"]}, {"name": "thirdweb", "url": "https://thirdweb.com/base-sepolia-testnet", "desc": "Connect your wallet, or sign in with email or a social account, then claim once a day.", "tags": ["Wallet or social login", "Once a day"]}, {"name": "Chainlink", "url": "https://faucets.chain.link/base-sepolia", "desc": "Connect your wallet and claim ETH on Base Sepolia.", "tags": ["Connect wallet"]}, {"name": "Bitbond Token Tool", "url": "https://tokentool.bitbond.com/faucet/base-sepolia", "desc": "No sign-up. Connect your wallet and claim every 24 hours.", "tags": ["No sign-up", "Every 24h"]}, {"name": "Alchemy", "url": "https://www.alchemy.com/faucets/base-sepolia", "desc": "Paste your address, no account needed. 0.1 ETH a day, but the wallet must hold at least 0.001 ETH on Ethereum mainnet.", "tags": ["No account", "Needs 0.001 mainnet ETH"]}, {"name": "QuickNode", "url": "https://faucet.quicknode.com/base/sepolia", "desc": "Paste or connect your wallet, no account needed. One claim every 12 hours; the wallet needs a small mainnet balance.", "tags": ["No account", "Needs some mainnet ETH", "Every 12h"]}, {"name": "LearnWeb3", "url": "https://learnweb3.io/faucets/base_sepolia", "desc": "Multi-chain faucet. One claim a day.", "tags": ["Once a day"]}],
+    bridges: [{"name": "Superbridge", "url": "https://superbridge.app/base-sepolia", "desc": "Already have Sepolia ETH on Ethereum? Move it to Base Sepolia here. Deposits arrive in a few minutes.", "tags": ["Bridge", "A few minutes"]}],
   },
   base: { slot: "mainnet", name: "Base", symbol: "ETH", explorer: "https://basescan.org", logApi: "https://base.blockscout.com/api", weth: "0x4200000000000000000000000000000000000006", mainnet: true, quickBuys: ["0.001", "0.005", "0.01", "0.05"] },
   zero: { slot: "zero", name: "Zero", symbol: "ZRO", explorer: process.env.EXPLORER_URL || "https://explorer.zero.layerzero.network", mainnet: true },
@@ -88,7 +89,7 @@ async function main() {
   const cfg = {
     version: "v2", chainId: Number(chainId), chainName: chain.name, rpcUrl: network.config.url || "http://127.0.0.1:8545",
     nativeSymbol: chain.symbol, explorer: chain.explorer, quickBuys: chain.quickBuys || ["0.1", "0.5", "1", "2"],
-    logRpcUrls: chain.logRpcUrls || [], logApi: chain.logApi || "", links: chain.links || {}, faucets: chain.faucets || [],
+    logRpcUrls: chain.logRpcUrls || [], logApi: chain.logApi || "", links: chain.links || {}, faucets: chain.faucets || [], bridges: chain.bridges || [],
     testnet: !chain.mainnet && !process.env.CONFIG_SLOT, launchpad, swapRouter: routerAddr, swapFactory: factory, weth, deployBlock: block,
   };
   const slot = process.env.CONFIG_SLOT || chain.slot; // e.g. CONFIG_SLOT=mainnet to rehearse the mainnet site locally

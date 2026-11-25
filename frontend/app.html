@@ -80,6 +80,14 @@
   .qlist .it.now .ic { background:var(--acc); color:var(--accTxt); }
   .qlist .tt { flex:1; min-width:0; } .qlist .pp { font:600 12px ui-monospace, Menlo, monospace; color:var(--mut); } .qlist .it.ok .pp { color:var(--acc); }
   @media(max-width:600px){ #ptsBtn .lbl { display:none; } }
+  .fwrap { display:grid; grid-template-columns:1.3fr 1fr; gap:14px; align-items:start; } @media(max-width:860px){ .fwrap{grid-template-columns:1fr;} }
+  .facts { list-style:none; margin:10px 0 0; padding:0; } .facts li { display:flex; justify-content:space-between; gap:14px; padding:9px 0; border-top:1px solid var(--line); font-size:14px; } .facts li:first-child { border-top:0; } .facts b { font-family:ui-monospace, Menlo, monospace; text-align:right; } .facts small { display:block; color:var(--mut); font:400 12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  @media(max-width:600px){ .facts li { flex-direction:column; gap:2px; } .facts b { text-align:left; } }
+  .fgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
+  a.fcard { display:block; color:var(--txt); text-decoration:none !important; transition:border-color .15s, transform .15s; } a.fcard:hover { border-color:var(--acc); transform:translateY(-1px); }
+  a.fcard h3 { margin:0 0 6px; font-size:16px; } a.fcard h3 span { color:var(--acc); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; } .chips span { font-size:11px; color:var(--mut); border:1px solid var(--line); border-radius:20px; padding:2px 8px; }
+  .addr { display:flex; gap:8px; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:8px 8px 8px 12px; margin-top:10px; } .addr span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; font-family:ui-monospace, Menlo, monospace; font-size:13px; }
   .note { background:var(--card2); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--mut); }
 </style>
 </head>
@@ -100,6 +108,7 @@
     <div id="list" class="grid"><span class="mut">Loading…</span></div>
   </section>
   <section id="detail" style="display:none"></section>
+  <section id="faucetPage" style="display:none"></section>
 </main>
 <footer>
   <div class="links" id="footLinks"></div>
@@ -324,7 +333,7 @@ function ptsRender() {
   } else if (next) {
     h += `<div class="qcur"><div class="row wrap" style="gap:6px"><span class="badge">Next quest</span><span class="badge mutd">+${fmtInt(c.pointsPerTask)} pts</span></div>
       <div style="font-weight:700;font-size:16px;margin:8px 0 4px">${esc(next.title)}</div>${next.hint ? `<div class="mut">${esc(next.hint)}</div>` : ""}
-      <div class="mut" style="margin-top:6px">Points are added automatically after your transaction confirms. Did it already? Check it now:</div>
+      <div class="mut" style="margin-top:6px">Points are added automatically after your transaction confirms. Need test ${SYM}? <a href="#faucet" onclick="closeQuests()">Get it free</a>. Did it already? Check it now:</div>
       <button id="ptsVerify" class="ghost" style="width:100%;margin-top:10px">Verify</button><div class="r" id="ptsErr" style="font-size:13px;margin-top:8px"></div></div>`;
   } else {
     h += `<div class="qcur"><div style="font-weight:700;font-size:16px">All quests complete ✓</div><div class="mut">Nice. Keep launching and trading; more quests are coming.</div></div>`;
@@ -415,6 +424,10 @@ async function openLaunch() {
   $("launchInfo").innerHTML = `Launch fee: <b>${num(fee)} ${SYM}</b> · Graduates at: <b>~${num(target, 6)} ${SYM}</b> raised<br>
     Supply 1,000,000,000 · 71.4% sold on the curve · ~20.4% + all raised ${SYM} seed a ${DEX} pool (LP burned) · ~8.2% locked forever.<br>
     Every trade pays 1% (30% platform / 70% you) + your creator tax. Name, ticker and tax are fixed after launch.`;
+  if (CFG.testnet && account) {
+    const bal = await rp.getBalance(account).catch(() => null);
+    if (bal !== null && bal < fee + ethers.parseEther("0.0002")) $("launchInfo").insertAdjacentHTML("afterbegin", `<div style="color:var(--acc);margin-bottom:8px">Your wallet has no test ${SYM} yet. <a href="#faucet" onclick="closeLaunch()"><b>Get it free →</b></a></div>`);
+  }
 }
 function closeLaunch() { $("launchModal").style.display = "none"; }
 $("launchModal").onclick = (e) => { if (e.target.id === "launchModal") closeLaunch(); };
@@ -671,7 +684,7 @@ async function showDetail(a) {
   clearInterval(tickTimer); clearInterval(histTimer);
   if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; }
   chartData = null;
-  $("home").style.display = "none"; $("detail").style.display = "block";
+  $("home").style.display = "none"; $("faucetPage").style.display = "none"; $("detail").style.display = "block";
   const v = await padR.getLaunch(a), l = v.launch;
   const tokR = new ethers.Contract(a, TOKEN_ABI, rp);
   const [bal, nBal] = await Promise.all([account ? tokR.balanceOf(account) : 0n, account ? rp.getBalance(account) : 0n]);
@@ -838,10 +851,64 @@ $("aMigFeeSave").onclick = () => adminTx(p => p.setMigrationFee(ethers.parseEthe
 $("aRecipientSave").onclick = () => { const r = $("aRecipient").value.trim(); if (!ethers.isAddress(r)) return toast("Invalid address."); adminTx(p => p.setPlatformFeeRecipient(r), "Fee recipient updated."); };
 $("aWithdraw").onclick = () => adminTx(p => p.withdrawPlatformFees(), "Platform fees sent.");
 
+// ---------------- get test ETH (testnet) ----------------
+let faucetTimer = null;
+async function showFaucet() {
+  const el = $("faucetPage");
+  el.style.display = "block";
+  window.scrollTo(0, 0);
+  const card = (f) => `<a class="card fcard" href="${esc(safeUrl(f.url) || "#")}" target="_blank" rel="noopener"><h3>${esc(f.name)} <span>↗</span></h3><div class="mut">${esc(f.desc || f.note || "")}</div>${(f.tags || []).length ? `<div class="chips">${f.tags.map(t => `<span>${esc(t)}</span>`).join("")}</div>` : ""}</a>`;
+  el.innerHTML = `
+    <div class="hero"><div><h1>get test <span>${esc(SYM)}</span>.</h1><div class="mut">The null testnet runs on ${esc(CFG.chainName)}. Launching and trading here use ${esc(CFG.chainName)} ${esc(SYM)}: it's free from a faucet and worth nothing.</div></div>
+      <button class="ghost sm" onclick="location.hash=''">← Back to tokens</button></div>
+    <div class="fwrap">
+      <div class="card"><div style="font-weight:700">How much you need</div><ul class="facts" id="fFacts"><li><span class="mut">Loading…</span></li></ul></div>
+      <div class="card" id="fWallet"></div>
+    </div>
+    <h3 class="sec" style="margin:26px 0 10px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em">Faucets</h3>
+    <div class="fgrid">${(CFG.faucets || []).map(card).join("")}</div>
+    ${(CFG.bridges || []).length ? `<h3 style="margin:26px 0 10px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em">Have Sepolia ${esc(SYM)} on Ethereum?</h3><div class="fgrid">${CFG.bridges.map(card).join("")}</div>` : ""}
+    <div class="note" style="margin-top:18px">These faucets are run by other companies, not by null. Each has its own limits and some ask you to sign in. If one is empty or asks for too much, try the next one.</div>`;
+  renderFaucetWallet();
+  faucetFacts().catch(() => { $("fFacts").innerHTML = '<li><span class="mut">Could not load the numbers right now.</span></li>'; });
+  clearInterval(faucetTimer);
+  faucetTimer = setInterval(() => { if (location.hash === "#faucet") renderFaucetWallet(true); else clearInterval(faucetTimer); }, 10000);
+}
+async function faucetFacts() {
+  const [fee, target] = await Promise.all([padR.launchFee(), padR.graduationTarget()]);
+  const f = (wei, d = 4) => Number(ethers.formatEther(wei)).toLocaleString("en-US", { maximumFractionDigits: d });
+  $("fFacts").innerHTML = [
+    ["Launch a token", fee === 0n ? "free + gas" : `${f(fee, 6)} ${SYM} + gas`],
+    ["Gas per launch or trade", "almost nothing"],
+    ["Buy or sell", "any amount"],
+    ["Graduate a token to nullswap", `~${f(target * 101n / 100n, 3)} ${SYM}`, "in buys, from everyone together"],
+  ].map(([k, v, sub]) => `<li><span class="mut">${k}</span><b>${esc(v)}${sub ? `<small>${esc(sub)}</small>` : ""}</b></li>`).join("") + `<li><span class="mut" style="font-size:13px">A single faucet claim is usually enough to launch a few tokens and trade for a while.</span></li>`;
+}
+async function renderFaucetWallet(quiet) {
+  const el = $("fWallet"); if (!el) return;
+  if (!account) {
+    el.innerHTML = `<div style="font-weight:700">Your wallet</div><div class="mut" style="margin:6px 0 12px">Connect to copy your address for the faucet and see your ${esc(SYM)} arrive.</div><button id="fConnect" style="width:100%">Connect wallet</button>`;
+    $("fConnect").onclick = () => connect().then(() => renderFaucetWallet()).catch(e => toast(errMsg(e)));
+    return;
+  }
+  let bal = null; try { bal = await rp.getBalance(account); } catch {}
+  if (!$("fWallet")) return;
+  const ready = bal !== null && bal >= ethers.parseEther("0.0005");
+  el.innerHTML = `<div style="font-weight:700">Your wallet</div>
+    <div class="addr"><span>${esc(account)}</span><button class="ghost sm" id="fCopy">Copy</button></div>
+    <div class="row sp" style="margin-top:12px"><span class="mut">Balance on ${esc(CFG.chainName)}</span><b class="mono">${bal === null ? "—" : Number(ethers.formatEther(bal)).toLocaleString("en-US", { maximumFractionDigits: 5 }) + " " + esc(SYM)}</b></div>
+    <div class="mut" style="margin-top:6px;font-size:12px">Updates every few seconds while this page is open.</div>
+    ${ready ? `<button style="width:100%;margin-top:12px" onclick="location.hash='';setTimeout(openLaunch,50)">You're set — launch a token</button>` : `<div class="note" style="margin-top:12px">Paste this address into one of the faucets below, then come back here.</div>`}`;
+  $("fCopy").onclick = async () => { try { await navigator.clipboard.writeText(account); toast("Address copied — paste it into the faucet."); } catch { toast(account, 8000); } };
+}
+
 // ---------------- router ----------------
 function route() {
   const h = location.hash.slice(1);
+  clearInterval(faucetTimer);
+  if (h !== "faucet") $("faucetPage").style.display = "none";
   if (ethers.isAddress(h) && !NOT_DEPLOYED) showDetail(h).catch(e => { toast(errMsg(e)); });
+  else if (h === "faucet" && CFG.testnet) { clearInterval(tickTimer); clearInterval(histTimer); if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; } $("detail").style.display = "none"; $("home").style.display = "none"; showFaucet(); }
   else { clearInterval(tickTimer); clearInterval(histTimer); if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; } $("detail").style.display = "none"; $("home").style.display = "block"; loadList().catch(e => { $("list").innerHTML = `<div class="card mut">Could not reach ${esc(CFG.chainName)} RPC. ${esc(errMsg(e))}</div>`; }); }
 }
 $("connect").onclick = (e) => {
@@ -856,8 +923,7 @@ document.addEventListener("click", (e) => { if (!e.target.closest(".wallet")) $(
 $("net").textContent = `${CFG.chainName} · ${CFG.chainId}`;
 if (CFG.testnet) {
   $("testnetBar").style.display = "block";
-  const faucets = (CFG.faucets || []).map(f => `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name)} ↗</a>${f.note ? ` <span style="opacity:.7">(${esc(f.note)})</span>` : ""}`).join(" · ");
-  $("testnetBar").innerHTML = `null testnet on ${esc(CFG.chainName)} — tokens have no real value.${faucets ? ` Free test ETH: ${faucets}` : ""}`;
+  $("testnetBar").innerHTML = `null testnet on ${esc(CFG.chainName)} — tokens have no real value. <a href="#faucet"><b>Get free test ${esc(SYM)} →</b></a>`;
 }
 $("tagline").textContent = `Permissionless token launchpad on ${CFG.chainName}. Fair launch, bonding curve, liquidity locked forever on ${DEX}.`;
 $("footLinks").innerHTML = [
