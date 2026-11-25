@@ -393,13 +393,28 @@ async function ptsAfterTx(hash) {
 
 // ---------------- home ----------------
 // Testnet: tokens launched by bot wallet chains are kept off the list (see /api/hidden). Fails open.
-let hiddenSet = null, hiddenAt = 0, showHidden = false;
+let hiddenSet = null, hiddenAt = 0, showHidden = false, hiddenReq = null;
+// The last list is kept on the device, so the token list never waits more than a moment for it.
+try { const c = JSON.parse(localStorage.getItem("null_hidden") || "null"); if (Array.isArray(c)) hiddenSet = new Set(c); } catch {}
+function fetchHidden() {
+  if (hiddenReq) return hiddenReq;
+  hiddenReq = withTimeout(fetch("/api/hidden").then(x => x.ok ? x.json() : Promise.reject()), 20000).then(r => {
+    const next = new Set((r.hidden || []).map(a => a.toLowerCase()));
+    const changed = !hiddenSet || next.size !== hiddenSet.size || [...next].some(a => !hiddenSet.has(a));
+    hiddenSet = next; hiddenAt = Date.now();
+    try { localStorage.setItem("null_hidden", JSON.stringify([...next])); } catch {}
+    return changed;
+  }).catch(() => false).finally(() => { hiddenReq = null; });
+  return hiddenReq;
+}
 async function loadHidden() {
   if (!CFG.testnet) return new Set();
   if (hiddenSet && Date.now() - hiddenAt < 60000) return hiddenSet;
-  try { const r = await withTimeout(fetch("/api/hidden").then(x => x.ok ? x.json() : Promise.reject()), 15000); hiddenSet = new Set((r.hidden || []).map(a => a.toLowerCase())); hiddenAt = Date.now(); }
-  catch { hiddenSet = hiddenSet || new Set(); }
-  return hiddenSet;
+  const req = fetchHidden();
+  if (hiddenSet) { req.then(changed => { if (changed && !location.hash) loadList().catch(() => {}); }); return hiddenSet; } // use the saved list now, refresh behind
+  await Promise.race([req, new Promise(r => setTimeout(r, 2500))]);
+  if (!hiddenSet) req.then(changed => { if (changed && !location.hash) loadList().catch(() => {}); });
+  return hiddenSet || new Set();
 }
 async function loadList() {
   if (NOT_DEPLOYED) { $("list").innerHTML = COMING_SOON; return; }

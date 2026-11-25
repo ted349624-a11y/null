@@ -51,31 +51,52 @@ async function owner() {
   } catch { return ""; }
 }
 
-module.exports = P.handler(async (req, res) => {
-  const deadline = Date.now() + 4000; // answer fast; unfinished lookups continue on the next call
-  let all;
-  try { all = await launches(); } catch { throw P.fail(502, "Indexer unavailable, try again shortly."); }
+const FRESH_MS = 60000, RETRY_MS = 10 * 60000;
+
+// Works out the hidden list. Funders never change, so each creator is looked up once and remembered;
+// a failed lookup is remembered as "?<time>" and retried after RETRY_MS (it counts as "not a bot" meanwhile).
+async function compute() {
+  const deadline = Date.now() + 3000;
+  const all = await launches();
   const creators = [...new Set(all.map((l) => l.creator))];
-  // Funders never change, so each creator is looked up once and remembered.
   const known = P.pairs(await P.redis(["HGETALL", "cfund"]));
-  const todo = creators.filter((c) => !known[c]).slice(0, 120);
+  const due = (c) => !known[c] || (known[c].startsWith("?") && Date.now() - Number(known[c].slice(1)) > RETRY_MS);
+  const todo = creators.filter(due).slice(0, 120);
   for (let i = 0; i < todo.length && Date.now() < deadline; i += 6) {
-    const got = await Promise.all(todo.slice(i, i + 6).map(async (c) => { try { return [c, await firstFunder(c)]; } catch { return null; } }));
-    const ok = got.filter(Boolean);
-    if (ok.length) { await P.redis(["HSET", "cfund", ...ok.flat()]); for (const [c, f] of ok) known[c] = f; }
+    const got = await Promise.all(todo.slice(i, i + 6).map(async (c) => { try { return [c, await firstFunder(c)]; } catch { return [c, "?" + Date.now()]; } }));
+    await P.redis(["HSET", "cfund", ...got.flat()]);
+    for (const [c, f] of got) known[c] = f;
   }
   const isCreator = new Set(creators), adminAddr = await owner();
   const bot = new Set();
   for (const c of creators) {
     const f = known[c];
     // Transfers to or from the owner never count (the owner funds testers; the setup wallet refunded the owner).
-    if (f && f !== NONE && f !== c && f !== adminAddr && c !== adminAddr && isCreator.has(f)) { bot.add(c); bot.add(f); }
+    if (f && f !== NONE && !f.startsWith("?") && f !== c && f !== adminAddr && c !== adminAddr && isCreator.has(f)) { bot.add(c); bot.add(f); }
   }
   bot.delete(adminAddr);
-  const hidden = all.filter((l) => bot.has(l.creator)).map((l) => l.token);
+  return {
+    hidden: all.filter((l) => bot.has(l.creator)).map((l) => l.token),
+    botWallets: bot.size,
+    unchecked: creators.filter((c) => !known[c]).length,
+    at: Date.now(),
+  };
+}
+
+module.exports = P.handler(async (req, res) => {
+  // Serve the last result right away; recompute at most once a minute.
+  let result = null;
+  try { result = JSON.parse((await P.redis(["GET", "hiddenResult"])) || "null"); } catch {}
+  if (!result || Date.now() - result.at > FRESH_MS || result.unchecked > 0) {
+    try {
+      result = await compute();
+      await P.redis(["SET", "hiddenResult", JSON.stringify(result), "EX", "86400"]);
+    } catch (e) {
+      if (!result) throw P.fail(502, "Indexer unavailable, try again shortly.");
+    }
+  }
   res.statusCode = 200;
   res.setHeader("content-type", "application/json");
-  const pending = creators.filter((c) => !known[c]).length;
-  res.setHeader("cache-control", pending ? "no-store" : "public, s-maxage=60, stale-while-revalidate=300");
-  res.end(JSON.stringify({ hidden, botWallets: bot.size, checked: creators.length - pending, pending }));
+  res.setHeader("cache-control", "public, s-maxage=30, stale-while-revalidate=120");
+  res.end(JSON.stringify(result));
 });
