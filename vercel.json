@@ -5,19 +5,7 @@
   "outputDirectory": "frontend",
   "rewrites": [
     {
-      "source": "/api/apply",
-      "destination": "/api/x?apply=1"
-    },
-    {
-      "source": "/api/apply/responses",
-      "destination": "/api/x?apply=1&list=1"
-    },
-    {
       "source": "/apply",
-      "destination": "/apply.html"
-    },
-    {
-      "source": "/apply/responses",
       "destination": "/apply.html"
     },
     {

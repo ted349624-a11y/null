@@ -67,7 +67,6 @@
   .ok { text-align:left; }
   .ok .tick { width:44px; height:44px; border-radius:50%; background:#1c2410; color:var(--acc); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; }
   .ok h2 { margin:14px 0 4px; font-size:22px; }
-  .ok .num { font:700 40px/1.1 ui-monospace, Menlo, monospace; color:var(--acc); margin:14px 0 2px; }
   .sum { margin-top:16px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
   .sum div { display:flex; justify-content:space-between; gap:12px; padding:11px 14px; font-size:14px; }
   .sum div + div { border-top:1px solid var(--line); }
@@ -76,30 +75,14 @@
   .ok .acts { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
   .ok .acts > * { flex:1 1 200px; }
 
-  /* responses (team only) */
-  .tools { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 0; }
-  .tools input { flex:1 1 200px; min-width:0; background:var(--card2); border:1px solid var(--line); border-radius:9px; color:var(--txt); padding:8px 12px; font:14px ui-monospace, Menlo, monospace; outline:0; }
-  .tools input:focus { border-color:var(--acc); }
-  .count { font:700 40px/1.1 ui-monospace, Menlo, monospace; margin:8px 0 0; }
-  table { width:100%; border-collapse:collapse; font-size:14px; }
-  th { text-align:left; font-size:11px; font-weight:600; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; padding:0 10px 8px; }
-  td { padding:10px; border-top:1px solid var(--line); vertical-align:top; }
-  td.n { color:var(--mut); font-family:ui-monospace, Menlo, monospace; width:1%; white-space:nowrap; }
-  td.a { font-family:ui-monospace, Menlo, monospace; font-size:13px; overflow-wrap:anywhere; }
-  td.t { color:var(--mut); font-size:12px; white-space:nowrap; width:1%; }
-  .tbl { padding:16px 12px 6px; overflow-x:auto; }
-  .empty { padding:18px 10px; color:var(--mut); text-align:center; }
 
   footer { max-width:660px; margin:18px auto 40px; padding:16px 20px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between; color:var(--mut); font-size:13px; }
   footer .links { display:flex; gap:18px; }
-  #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); background:#1a1d21; border:1px solid var(--line2); color:var(--txt); padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; pointer-events:none; transition:.2s; z-index:20; }
-  #toast.show { opacity:1; transform:translateX(-50%); }
   [hidden] { display:none !important; }
   @media (max-width:600px) {
     header { padding:10px 14px; } main { padding:16px 12px 4px; }
     .card { padding:18px 16px 16px; } .head { padding-top:24px; }
     .head h1 { font-size:28px; }
-    td.t { display:none; } th.t { display:none; }
   }
 </style>
 </head>
@@ -154,47 +137,21 @@
       <div class="tick">✓</div>
       <h2 id="okTitle">Your response has been recorded</h2>
       <div class="mut">You're on the list. Spots are limited, so keep an eye on <a class="xh2" href="https://x.com/nullfamily" target="_blank" rel="noopener">@nullfamily</a> for the next steps.</div>
-      <div class="num" id="okNum">#—</div>
-      <div class="mut" style="font-size:13px">your application number</div>
       <div class="sum"><div><span class="mut">X username</span><b id="okU"></b></div><div><span class="mut">EVM address</span><b id="okA"></b></div></div>
       <div class="acts">
         <a class="btn" href="/">Earn points on quests →</a>
         <a class="btn ghost" id="okX" href="https://x.com/nullfamily" target="_blank" rel="noopener"><svg class="xg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Open @nullfamily</a>
       </div>
-      <div style="margin-top:14px"><button type="button" class="plain" id="edit" style="padding-left:0">Edit your response</button></div>
+      <div style="margin-top:14px"><button type="button" class="plain" id="edit" style="padding-left:0">Submit another response</button></div>
     </div>
   </section>
 
-  <!-- ===== responses: the null team only ===== -->
-  <section id="respView" hidden>
-    <div class="card head">
-      <span class="badge">Team only</span>
-      <h1 style="font-size:28px">Responses</h1>
-      <div id="respGate">
-        <p>Sign in with the null team wallet to see the applications. Signing is free: no transaction, no gas.</p>
-        <div style="margin-top:16px" id="respBtnWrap"></div>
-        <div class="formerr" id="respErr"></div>
-      </div>
-      <div id="respTop" hidden>
-        <div class="count" id="respCount">0</div>
-        <div class="mut" style="font-size:13px" id="respSub">applications</div>
-        <div class="tools">
-          <input id="respQ" placeholder="Search @name or 0x…" autocapitalize="off" spellcheck="false" />
-          <button class="ghost sm" id="csv">Download CSV</button>
-          <button class="ghost sm" id="cpA">Copy addresses</button>
-          <button class="ghost sm" id="cpU">Copy usernames</button>
-        </div>
-      </div>
-    </div>
-    <div class="card tbl" id="respTable" hidden></div>
-  </section>
 </main>
 
 <footer>
   <div class="links"><a class="xh2" id="fX" href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a href="/">Quests</a></div>
   <div>null<span style="color:var(--acc)">_</span> · limited spots</div>
 </footer>
-<div id="toast"></div>
 
 <script>
 (() => {
@@ -207,15 +164,16 @@
   // The quests homepage keeps the X username as plain text under null_xu.
   const rawGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const rawSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
-  let toastT;
-  const toast = (m) => { const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600); };
-  async function api(path, opts = {}) {
-    const r = await fetch("/api/" + path, { method: opts.body ? "POST" : "GET", headers: { "content-type": "application/json", ...(opts.token ? { authorization: "Bearer " + opts.token } : {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
-    let j = {};
-    try { j = await r.json(); } catch {}
-    if (!r.ok) throw Object.assign(new Error(j.error || "Something went wrong. Try again."), { status: r.status, field: j.field });
-    return j;
+  async function api(path) {
+    const r = await fetch("/api/" + path);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
   }
+
+  // Answers go straight to the team's Google Form (nothing is stored on our side).
+  const GFORM = "https://docs.google.com/forms/d/e/1FAIpQLSeo95rULAoKQ0llTcro_tkQ6jEHz9QtswF5urYiMcdwVQ5luQ";
+  const ENTRY = { username: "entry.1133634906", address: "entry.1580755512" };
+  const prefilled = (v) => `${GFORM}/viewform?usp=pp_url&${ENTRY.username}=${encodeURIComponent(v.username)}&${ENTRY.address}=${encodeURIComponent(v.address)}`;
 
   // ---------- X links: the handle and the latest tweet come from the quest config ----------
   let HANDLE = "nullfamily", TWEET = "";
@@ -264,6 +222,7 @@
     else setErr("username", "");
     if (!a) { setErr("address", "This is a required question."); ok = false; }
     else if (!/^0x[0-9a-fA-F]{40}$/.test(a)) { setErr("address", "Enter a valid EVM address: 0x followed by 40 characters."); ok = false; }
+    else if (/^0x0{40}$/i.test(a)) { setErr("address", "That is the zero address. Enter your own wallet address."); ok = false; }
     else setErr("address", "");
     return ok ? { username: u, address: a } : null;
   }
@@ -277,112 +236,34 @@
     const btn = $("send");
     btn.disabled = true; btn.textContent = "Submitting…";
     try {
-      const r = await api("apply", { body: v });
-      store.set("null_apply", { n: r.n, u: r.username, a: r.address, updated: r.updated });
-      rawSet("null_xu", r.username); // the quests homepage picks this up
+      // Google answers without CORS headers, so the reply cannot be read; a network failure still throws.
+      await fetch(`${GFORM}/formResponse`, { method: "POST", mode: "no-cors", body: new URLSearchParams({ [ENTRY.username]: v.username, [ENTRY.address]: v.address }) });
+      store.set("null_apply", { u: v.username, a: v.address });
+      rawSet("null_xu", v.username); // the quests homepage picks this up
       showDone(store.get("null_apply"));
     } catch (e) {
-      if (e.field && fields[e.field]) { setErr(e.field, e.message); $(fields[e.field][0]).querySelector("input").focus(); }
-      else $("formErr").textContent = e.message;
+      $("formErr").innerHTML = `Could not send your answers. Check your connection and try again, or <a href="${esc(prefilled(v))}" target="_blank" rel="noopener">submit them on Google Forms ↗</a>.`;
     } finally { btn.disabled = false; btn.textContent = "Submit"; }
   });
   $("clear").onclick = () => { $("u").value = ""; $("a").value = ""; setErr("username", ""); setErr("address", ""); $("formErr").textContent = ""; $("u").focus(); };
 
   function showDone(d) {
     $("formView").hidden = true; $("doneView").hidden = false;
-    $("okTitle").textContent = d.updated ? "Your response has been updated" : "Your response has been recorded";
-    $("okNum").textContent = "#" + Number(d.n).toLocaleString("en-US");
     $("okU").textContent = "@" + d.u; $("okA").textContent = d.a;
     window.scrollTo(0, 0);
   }
   $("edit").onclick = () => {
     const d = store.get("null_apply") || {};
-    $("u").value = d.u || ""; $("a").value = d.a || "";
+    $("u").value = d.u || ""; $("a").value = d.a || ""; // handy for fixing a typo; "Clear form" empties it
+    store.set("null_apply", null);
     $("doneView").hidden = true; $("formView").hidden = false; $("u").focus();
   };
 
-  // ---------- responses (team wallet only) ----------
-  const ADMIN_KEY = "null_apply_admin";
-  let ROWS = [];
-  async function signIn() {
-    const btn = $("respSign"); $("respErr").textContent = "";
-    try {
-      btn.disabled = true; btn.textContent = "Check your wallet…";
-      const [account] = await window.ethereum.request({ method: "eth_requestAccounts" });
-      const { message, issuedAt } = await api("login?address=" + account);
-      const hex = "0x" + Array.from(new TextEncoder().encode(message), (b) => b.toString(16).padStart(2, "0")).join("");
-      const signature = await window.ethereum.request({ method: "personal_sign", params: [hex, account] });
-      const r = await api("login", { body: { address: account, issuedAt, signature } });
-      store.set(ADMIN_KEY, r.token);
-      await loadResponses();
-    } catch (e) {
-      $("respErr").textContent = e.code === 4001 ? "Signature request was rejected." : e.message;
-      btn.disabled = false; btn.textContent = "Connect wallet";
-    }
-  }
-  function gate(msg) {
-    $("respGate").hidden = false; $("respTop").hidden = true; $("respTable").hidden = true;
-    const dapp = "https://metamask.app.link/dapp/" + location.host + "/apply/responses";
-    $("respBtnWrap").innerHTML = window.ethereum
-      ? '<button id="respSign">Connect wallet</button>'
-      : `<a class="btn" href="${esc(dapp)}">Open in MetaMask</a><div class="note">No wallet in this browser. Using another wallet app? Open <b>${esc(location.host)}/apply/responses</b> in its browser.</div>`;
-    if ($("respSign")) $("respSign").onclick = signIn;
-    $("respErr").textContent = msg || "";
-  }
-  async function loadResponses() {
-    const token = store.get(ADMIN_KEY);
-    if (!token) return gate();
-    try {
-      const r = await api("apply/responses", { token });
-      ROWS = r.items;
-      $("respGate").hidden = true; $("respTop").hidden = false; $("respTable").hidden = false;
-      $("respCount").textContent = r.count.toLocaleString("en-US");
-      $("respSub").textContent = r.count === 1 ? "application" : "applications";
-      renderRows();
-    } catch (e) {
-      if (e.status === 401 || e.status === 403) { store.set(ADMIN_KEY, null); return gate(e.status === 403 ? e.message : ""); }
-      gate(e.message);
-    }
-  }
-  function filtered() {
-    const q = $("respQ").value.trim().toLowerCase().replace(/^@/, "");
-    return q ? ROWS.filter((r) => r.u.toLowerCase().includes(q) || r.a.toLowerCase().includes(q)) : ROWS;
-  }
-  function renderRows() {
-    const rows = filtered();
-    const when = (t) => new Date(t).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-    $("respTable").innerHTML = rows.length
-      ? `<table><thead><tr><th>#</th><th>X username</th><th>EVM address</th><th class="t">Time</th></tr></thead><tbody>${rows.slice().reverse().map((r) =>
-          `<tr><td class="n">${r.n}</td><td><a href="https://x.com/${esc(r.u)}" target="_blank" rel="noopener">@${esc(r.u)}</a></td><td class="a">${esc(r.a)}</td><td class="t">${esc(when(r.t))}</td></tr>`).join("")}</tbody></table>`
-      : `<div class="empty">${ROWS.length ? "No matches." : "No applications yet."}</div>`;
-  }
-  async function copy(text, what) {
-    try { await navigator.clipboard.writeText(text); toast(`Copied ${what}`); }
-    catch { toast("Copy failed. Use Download CSV instead."); }
-  }
-  $("respQ").oninput = renderRows;
-  $("cpA").onclick = () => { const r = filtered(); copy(r.map((x) => x.a).join("\n"), `${r.length} address${r.length === 1 ? "" : "es"}`); };
-  $("cpU").onclick = () => { const r = filtered(); copy(r.map((x) => "@" + x.u).join("\n"), `${r.length} username${r.length === 1 ? "" : "s"}`); };
-  $("csv").onclick = () => {
-    const cell = (s) => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-    const lines = ["number,x_username,evm_address,submitted_at_utc", ...filtered().map((r) => [r.n, r.u, r.a, new Date(r.t).toISOString()].map(String).map(cell).join(","))];
-    const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = "null-applications-" + new Date().toISOString().slice(0, 10) + ".csv";
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
 
-  // ---------- which view ----------
-  if (/\/responses\/?$/.test(location.pathname) || location.hash === "#responses") {
-    document.title = "Responses — null_";
-    $("formView").hidden = true; $("respView").hidden = false;
-    loadResponses();
-  } else {
-    const prev = store.get("null_apply");
-    if (prev && prev.n) showDone(prev);
-    else { const xu = rawGet("null_xu"); if (xu && /^[A-Za-z0-9_]{1,15}$/.test(xu)) $("u").value = xu; }
-  }
+  // ---------- first view: the confirmation if this browser already applied ----------
+  const prev = store.get("null_apply");
+  if (prev && prev.u && prev.a) showDone(prev);
+  else { const xu = rawGet("null_xu"); if (xu && /^[A-Za-z0-9_]{1,15}$/.test(xu)) $("u").value = xu; }
 })();
 </script>
 </body>
