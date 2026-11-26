@@ -63,6 +63,7 @@ module.exports = P.handler(async (req, res) => {
     return reply(res, 200, { added: await IX.ingestTx(tx) });
   }
   const q = new URL(req.url, "http://x").searchParams;
+  if (q.get("status") === "1") { await IX.sync(3500).catch(() => {}); return reply(res, 200, await IX.status()); }
   const token = q.get("token") || "", pair = q.get("pair") || "";
   if (!ethers.isAddress(token) || (pair && !ethers.isAddress(pair))) throw P.fail(400, "Bad address");
   const key = (token + ":" + pair).toLowerCase();
