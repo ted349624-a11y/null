@@ -5,6 +5,14 @@
   "outputDirectory": "frontend",
   "rewrites": [
     {
+      "source": "/api/index-status/:n",
+      "destination": "/api/history?status=1"
+    },
+    {
+      "source": "/api/stats-check/:n",
+      "destination": "/api/stats"
+    },
+    {
       "source": "/",
       "has": [
         {
