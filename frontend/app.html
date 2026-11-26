@@ -662,8 +662,7 @@ $("launchBtn").onclick = async () => {
     $("launchBtn").disabled = true; toast("Confirm in your wallet…", 60000);
     const rc = await (await pad.createToken(name, sym, meta, tax, wallet || ethers.ZeroAddress, 0, { value: launchFee + buy })).wait();
     const ev = rc.logs.map(l => { try { return pad.interface.parseLog(l); } catch { return null; } }).find(e => e?.name === "TokenLaunched");
-    histFreshUntil = Date.now() + 60000;
-    toast(`$${sym} is live!`); closeLaunch(); ptsAfterTx(rc.hash);
+    toast(`$${sym} is live!`); closeLaunch(); await reportTx(rc.hash); ptsAfterTx(rc.hash);
     ["fName","fSym","fImg","fDesc","fWeb","fX","fTg","fWallet","fBuy"].forEach(i => $(i).value = ""); $("fTax").value = "0";
     location.hash = ev.args.token;
   } catch (e) { toast(errMsg(e)); } finally { $("launchBtn").disabled = false; }
@@ -731,6 +730,12 @@ async function historyFromRpc(prov, token, pair) {
 }
 
 let histFreshUntil = 0; // right after the user's own trade, skip the shared cache so the trade shows up at once
+// Hand a just-confirmed transaction to our index so it's on the chart at once (testnet).
+async function reportTx(hash) {
+  histFreshUntil = Date.now() + 60000;
+  if (!CFG.testnet || !hash) return;
+  try { await withTimeout(fetch("/api/history", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tx: hash }) }), 8000); } catch {}
+}
 async function loadHistory(token, pair) {
   if (CFG.testnet) {
     // Our own server fetches and caches it (works even where the browser can't reach the indexer).
@@ -1030,8 +1035,7 @@ async function showDetail(a) {
         const tx = !l.graduated ? await target.sell(a, x, min, deadline()) : IS_V2 ? await target.swapExactTokensForETH(a, x, min, account, deadline()) : await target.swapExactTokensForETH(x, min, [a, CFG.weth], account, deadline());
         await tx.wait(); txHash = tx.hash;
       }
-      histFreshUntil = Date.now() + 60000;
-      toast("Trade confirmed ✅"); showDetail(a); setTimeout(() => ptsAfterTx(txHash), 1200);
+      toast("Trade confirmed ✅"); await reportTx(txHash); showDetail(a); setTimeout(() => ptsAfterTx(txHash), 1200);
       setTimeout(() => { if (location.hash.slice(1).toLowerCase() === a.toLowerCase()) padR.getLaunch(a).then(v => refreshHistory(a, v, detailSeq)).catch(() => {}); }, 6000);
     } catch (e) { toast(errMsg(e)); $("trade").disabled = false; }
   };

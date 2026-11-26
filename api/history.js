@@ -53,11 +53,25 @@ function reply(res, status, body, cache) {
   res.end(JSON.stringify(body));
 }
 
+const IX = require("../lib/chainindex");
+
 module.exports = P.handler(async (req, res) => {
+  // POST { tx } — add a just-confirmed trade straight from its receipt, so it shows up at once.
+  if (req.method === "POST") {
+    const { tx } = await P.body(req);
+    if (!/^0x[0-9a-fA-F]{64}$/.test(tx || "")) throw P.fail(400, "Bad transaction hash");
+    return reply(res, 200, { added: await IX.ingestTx(tx) });
+  }
   const q = new URL(req.url, "http://x").searchParams;
   const token = q.get("token") || "", pair = q.get("pair") || "";
   if (!ethers.isAddress(token) || (pair && !ethers.isAddress(pair))) throw P.fail(400, "Bad address");
   const key = (token + ":" + pair).toLowerCase();
+  // 1) Our own index (kept up to date here, a few seconds at a time).
+  try {
+    await IX.sync(3500).catch(() => {});
+    if (await IX.current()) return reply(res, 200, { ...(await IX.read(token)), at: Date.now(), src: "index" }, "public, s-maxage=4, stale-while-revalidate=10");
+  } catch { /* fall through to Blockscout */ }
+  // 2) Blockscout directly.
   try {
     const tok = ethers.zeroPadValue(token, 32).toLowerCase();
     const [trade, swap, sync] = await Promise.all([
