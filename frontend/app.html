@@ -89,26 +89,83 @@
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; } .chips span { font-size:11px; color:var(--mut); border:1px solid var(--line); border-radius:20px; padding:2px 8px; }
   .addr { display:flex; gap:8px; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:8px 8px 8px 12px; margin-top:10px; } .addr span { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; font-family:ui-monospace, Menlo, monospace; font-size:13px; }
   .note { background:var(--card2); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--mut); }
+  /* ---- home v2 ---- */
+  .ticker { overflow:hidden; border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:4px 0 18px; padding:9px 0; mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent); -webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent); }
+  .ticker .track { display:inline-flex; gap:34px; white-space:nowrap; animation:tick 45s linear infinite; padding-left:20px; }
+  .ticker:hover .track { animation-play-state:paused; }
+  .ticker a { color:var(--txt); font:600 13px ui-monospace, Menlo, monospace; cursor:pointer; text-decoration:none; }
+  .ticker .up { color:var(--grn); } .ticker .dn { color:var(--red); }
+  @keyframes tick { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  .tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .tile .k { color:var(--mut); font-size:12px; } .tile .v { font:700 22px/1.25 ui-monospace, Menlo, monospace; margin-top:2px; }
+  @media(max-width:600px){ .tile .v { font-size:18px; } .tile { padding:10px 12px; } }
+  .feat { display:flex; gap:18px; align-items:center; border:1px solid var(--acc); border-radius:16px; padding:18px; background:linear-gradient(135deg,#141b07,#0e1110 60%); box-shadow:0 0 0 1px rgba(198,255,61,.08), 0 18px 50px -28px rgba(198,255,61,.5); cursor:pointer; margin-bottom:26px; }
+  .feat .av { width:104px; height:104px; font-size:32px; }
+  .feat .kick { font:700 11px ui-monospace, Menlo, monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--acc); }
+  .feat h3 { margin:6px 0 4px; font-size:24px; line-height:1.2; } .feat h3 span { color:var(--mut); font-weight:600; }
+  .seg { height:12px; margin-top:12px; border-radius:3px; background:repeating-linear-gradient(90deg,#1d2228 0 calc(4.166% - 3px),transparent calc(4.166% - 3px) 4.166%); position:relative; overflow:hidden; }
+  .seg > i { position:absolute; inset:0 auto 0 0; background:repeating-linear-gradient(90deg,var(--acc) 0 calc(4.166% - 3px),transparent calc(4.166% - 3px) 4.166%); background-size:var(--w100) 100%; }
+  @media(max-width:600px){ .feat { padding:14px; gap:12px; } .feat .av { width:72px; height:72px; font-size:22px; } .feat h3 { font-size:19px; } }
+  .h2 { font:700 19px ui-monospace, Menlo, monospace; letter-spacing:-.3px; margin:0 0 12px; } .h2 b { color:var(--acc); }
+  .hrow { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(290px,32%); gap:12px; overflow-x:auto; padding-bottom:8px; margin-bottom:24px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+  .hrow > * { scroll-snap-align:start; } @media(max-width:600px){ .hrow { grid-auto-columns:84%; } }
+  .tok .av { width:56px; height:56px; font-size:18px; } .tok .row.sp .badge { flex:none; } .tok .sub { gap:8px; flex-wrap:nowrap; }
+  .tok .meta { font-size:12px; color:var(--mut); margin-top:1px; } .tok .nums { display:flex; gap:12px; font-size:13px; margin-top:4px; flex-wrap:wrap; } .tok .nums b { color:var(--txt); }
+  .tok .spark { display:block; margin-top:6px; }
+  .tabs2 { display:flex; gap:6px; overflow-x:auto; margin:6px 0 12px; padding-bottom:2px; } .tabs2 button { flex:none; }
+  .pgrid { display:grid; grid-template-columns:1.1fr 1fr; gap:14px; align-items:start; } @media(max-width:860px){ .pgrid { grid-template-columns:1fr; } }
+  .tscroll table.earn { white-space:normal; } .earn td:nth-child(3), .earn th:nth-child(3) { white-space:nowrap; padding-left:12px; } .earn td { vertical-align:top; } .earn td.st { width:22px; text-align:center; } .earn tr.done td { color:var(--mut); } .earn tr.next td:first-child { color:var(--acc); font-weight:600; }
+  /* bottom nav on phones */
+  #bnav { display:none; }
+  @media(max-width:860px){
+    #bnav { display:grid; grid-template-columns:1fr 1.25fr 1fr 1fr; gap:8px; position:fixed; left:0; right:0; bottom:0; z-index:8; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:rgba(8,9,11,.94); backdrop-filter:blur(8px); border-top:1px solid var(--line); }
+    #bnav button { background:transparent; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:11px 4px; font-weight:600; }
+    #bnav button.on { border-color:var(--acc); color:var(--acc); }
+    #bnav button.go { background:var(--acc); color:var(--accTxt); border-color:var(--acc); font:800 14px ui-monospace, Menlo, monospace; letter-spacing:.08em; }
+    body { padding-bottom:86px; } #openLaunch, #ptsBtn, #mineBtn { display:none !important; } #toast { bottom:96px; }
+  }
 </style>
 </head>
 <body>
 <header>
   <div class="logo" onclick="location.hash=''">null<b>_</b></div>
-  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="ptsBtn" style="display:none" onclick="openQuests()"></button><button class="ghost sm" id="openLaunch">+ Launch</button><div class="wallet"><button id="connect" class="sm">Connect wallet</button>
+  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="mineBtn" onclick="location.hash='mine'">My coins</button><button class="ghost sm" id="ptsBtn" style="display:none" onclick="location.hash='points'"></button><button class="ghost sm" id="openLaunch">+ Launch</button><div class="wallet"><button id="connect" class="sm">Connect wallet</button>
     <div class="wmenu" id="wmenu"><button id="wCopy">Copy address</button><button id="wExplorer">View on explorer</button><button id="wDisconnect" class="danger">Disconnect</button></div></div></div>
 </header>
 
 <div id="testnetBar" style="display:none;background:#1c2410;color:var(--acc);text-align:center;padding:8px 14px;font-size:13px;border-bottom:1px solid var(--line)"></div>
 <main>
   <section id="home">
-    <div class="hero">
+    <div class="hero" style="margin-bottom:10px">
       <div><h1>launch <span>anything</span>.</h1><div class="mut" id="tagline">Permissionless token launchpad. Fair launch, bonding curve, locked liquidity.</div></div>
-      <div class="pills" id="sort"><button class="ghost on" data-s="new">Newest</button><button class="ghost" data-s="mcap">Market cap</button><button class="ghost" data-s="prog">Closest to graduation</button></div>
     </div>
+    <div class="ticker" id="ticker" style="display:none"></div>
+    <div class="tiles" id="tiles"></div>
+    <div id="featured"></div>
+    <div id="rowClose"></div>
+    <div id="rowGrad"></div>
+    <div class="h2">all tokens<b>_</b></div>
+    <div class="pills tabs2" id="sort"><button class="ghost on" data-s="new">newest</button><button class="ghost" data-s="last">last trade</button><button class="ghost" data-s="mcap">market cap</button><button class="ghost" data-s="grad">graduated</button></div>
     <div id="list" class="grid"><span class="mut">Loading…</span></div>
   </section>
   <section id="detail" style="display:none"></section>
   <section id="faucetPage" style="display:none"></section>
+  <section id="pointsPage" style="display:none">
+    <div class="hero"><div><h1>points<span>.</span></h1><div class="mut">Every quest is worth points. Do the X quests on the homepage, then launch and trade here.</div></div><button class="ghost sm" onclick="location.hash=''">← Back to tokens</button></div>
+    <div class="pgrid">
+      <div class="card"><div style="font-weight:700">Your points</div><div id="questBody"></div></div>
+      <div class="card"><div style="font-weight:700;margin-bottom:6px">What points are for</div>
+        <p style="margin:0 0 10px">Points record what you've done on the null testnet, per wallet. They're how we recognise early users when null launches on Zero.</p>
+        <p class="mut" style="margin:0 0 10px">Points are not a token and no payout is promised. The rules can change while the testnet runs.</p>
+        <p class="mut" style="margin:0">Before anything is handed out, the top wallets are checked by hand. Farming (linked wallets, recycled ETH, scripted trades) is removed.</p></div>
+    </div>
+    <div class="h2" style="margin-top:26px">how to earn<b>_</b></div>
+    <div class="card tscroll"><table class="earn" id="earnTable"></table></div>
+    <div class="h2" style="margin-top:26px">leaderboard<b>_</b></div>
+    <div class="card tscroll"><table id="lbTable"><tr><td class="mut">Loading…</td></tr></table></div>
+  </section>
+  <section id="minePage" style="display:none"></section>
 </main>
 <footer>
   <div class="links" id="footLinks"></div>
@@ -156,12 +213,7 @@
     <div class="row sp"><span class="mut" id="aFees"></span><button class="ghost sm" id="aWithdraw">Withdraw</button></div>
   </div>
 </div>
-<div class="modal" id="questModal">
-  <div class="card">
-    <div class="row sp"><h2 style="margin:0">Testnet points</h2><button class="ghost sm" onclick="closeQuests()">✕</button></div>
-    <div id="questBody"></div>
-  </div>
-</div>
+<nav id="bnav"><button data-go="">coins</button><button class="go" id="bnLaunch">LAUNCH</button><button data-go="mine">my coins</button><button data-go="points">points</button></nav>
 <div id="toast"></div>
 
 <script src="./ethers.umd.min.js"></script>
@@ -275,7 +327,7 @@ async function ptsRefresh() {
   try { if (!PTS.conf) PTS.conf = await ptsApi("config"); } catch {}
   if (!PTS.conf?.ready) return; // quests not open yet
   $("ptsBtn").style.display = "";
-  if (!$("ptsBar") && $("testnetBar").style.display !== "none") $("testnetBar").insertAdjacentHTML("beforeend", ' · <a href="#" id="ptsBar" onclick="openQuests();return false">◆ Earn points</a>');
+  if (!$("ptsBar") && $("testnetBar").style.display !== "none") $("testnetBar").insertAdjacentHTML("beforeend", ' · <a href="#points" id="ptsBar">◆ Earn points</a>');
   PTS.me = store.get(PTS_KEY) ? await ptsApi("me").catch(() => null) : null;
   if (PTS.me && account && PTS.me.address !== account.toLowerCase()) PTS.me = null; // session belongs to another wallet
   const hint = store.get("null_xu");
@@ -288,19 +340,19 @@ async function ptsRefresh() {
     PTS.pending = await ptsApi("xprogress?u=" + encodeURIComponent(hint)).catch(() => null);
   }
   ptsPill();
-  if ($("questModal").style.display === "flex") ptsRender();
-  else if (ARRIVED_FROM_QUESTS && !ptsRefresh.shown) { ptsRefresh.shown = true; openQuests(); }
+  if (location.hash === "#points") ptsRender();
+  else if (ARRIVED_FROM_QUESTS && !ptsRefresh.shown) { ptsRefresh.shown = true; location.hash = "points"; }
 }
 const pendingPts = () => (PTS.pending ? PTS.pending.done.length * PTS.conf.pointsPerTask : 0);
 function ptsPill() {
   const n = PTS.me ? PTS.me.points : pendingPts();
   $("ptsBtn").innerHTML = `<span style="color:var(--acc)">◆</span> ${PTS.me || n ? `${fmtInt(n)}<span class="lbl"> pts</span>` : '<span class="lbl">Earn </span>points'}`;
 }
-function openQuests() { $("questModal").style.display = "flex"; ptsRender(); if (!PTS.conf) ptsRefresh(); }
-function closeQuests() { $("questModal").style.display = "none"; }
-$("questModal").onclick = (e) => { if (e.target.id === "questModal") closeQuests(); };
+function openQuests() { location.hash = "points"; }
+function closeQuests() {}
 
 function ptsRender() {
+  renderEarn();
   const c = PTS.conf, me = PTS.me, b = $("questBody");
   if (!c) { b.innerHTML = '<div class="mut" style="margin-top:12px">Loading…</div>'; return; }
   const qUrl = esc(c.questsUrl), qHost = esc(c.questsUrl.replace(/^https?:\/\//, ""));
@@ -381,7 +433,7 @@ async function ptsLinkX() {
 async function ptsTry(task, hash, loud) {
   PTS.me = await ptsApi("task", { id: task.id, tx: hash || undefined });
   toast(`◆ +${fmtInt(PTS.conf.pointsPerTask)} points · ${task.title}`, 6000);
-  ptsPill(); if ($("questModal").style.display === "flex") ptsRender();
+  ptsPill(); if (location.hash === "#points") ptsRender();
   await ptsAfterTx(hash);
 }
 async function ptsAfterTx(hash) {
@@ -416,34 +468,159 @@ async function loadHidden() {
   if (!hiddenSet) req.then(changed => { if (changed && !location.hash) loadList().catch(() => {}); });
   return hiddenSet || new Set();
 }
+// Activity from our server (testnet): totals, per-token volume / last trade / traders / price line, latest trades.
+let statsData = null, statsAt = 0, homeAll = null, homeTimer = null;
+async function loadStats(force) {
+  if (!CFG.testnet) return null;
+  if (statsData && !force && Date.now() - statsAt < 20000) return statsData;
+  try { statsData = await withTimeout(fetch("/api/stats").then(x => x.ok ? x.json() : Promise.reject()), 8000); statsAt = Date.now(); } catch {}
+  return statsData;
+}
+const ago = (sec) => { const d = Math.max(0, Date.now() / 1000 - Number(sec)); return d < 60 ? "now" : d < 3600 ? Math.floor(d / 60) + "m" : d < 86400 ? Math.floor(d / 3600) + "h" : Math.floor(d / 86400) + "d"; };
+const fmtEth = (n) => n === undefined || n === null ? "—" : n === 0 ? "0" : n < 0.0001 ? "<0.0001" : n.toLocaleString("en-US", { maximumFractionDigits: n < 1 ? 4 : 2 });
+const stOf = (v) => (statsData && statsData.tokens && statsData.tokens[v.token.toLowerCase()]) || {};
+function spark(arr) {
+  if (!arr || arr.length < 2) return "";
+  const w = 120, h = 26, lo = Math.min(...arr), hi = Math.max(...arr), span = hi - lo || 1;
+  const pts = arr.map((y, i) => `${(i / (arr.length - 1) * w).toFixed(1)},${(h - 2 - (y - lo) / span * (h - 4)).toFixed(1)}`).join(" ");
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="${arr[arr.length - 1] >= arr[0] ? "var(--grn)" : "var(--red)"}" stroke-width="2" points="${pts}"/></svg>`;
+}
+function tokCard(v, mode) {
+  const l = v.launch, mcap = v.price * 1_000_000_000n, prog = Number(v.progressBps) / 100, st = stOf(v), isBot = showHidden && hiddenSet && hiddenSet.has(v.token.toLowerCase());
+  const badge = isBot ? '<span class="badge" style="background:#2a0d10;color:var(--red)">bot</span>'
+    : l.graduated ? '<span class="badge">graduated</span>'
+    : mode === "close" ? `<span class="badge">${prog >= 99.95 ? "99.9" : prog.toFixed(prog >= 10 ? 0 : 1)}% to grad</span>`
+    : v.openingTaxBps > 0n ? '<span class="badge warn">new</span>'
+    : l.creatorTaxBps > 0 ? `<span class="badge mutd">tax ${Number(l.creatorTaxBps) / 100}%</span>` : "";
+  return `<div class="card tok" data-a="${v.token}">${avatar(v.meta, v.symbol)}
+    <div class="min0" style="flex:1"><div class="row sp"><b class="ell">${esc(v.name)}</b><span class="mut mono">$${esc(v.symbol)}</span></div>
+    <div class="row sp sub"><span class="meta ell">by ${short(l.creator)} · ${ago(l.createdAt)}</span>${badge}</div>
+    <div class="nums"><span class="mut">mcap <b>${compact(mcap)} ${SYM}</b></span><span class="mut">vol <b>${fmtEth(st.vol)}</b></span></div>
+    <div class="meta ell">${st.traders === undefined ? "&nbsp;" : st.traders + " trader" + (st.traders === 1 ? "" : "s")}${st.last ? ` · last trade ${ago(st.last)}` : ""}</div>
+    ${l.graduated ? spark(st.spark) : ""}
+    <div class="bar"><i style="width:${prog}%"></i></div></div></div>`;
+}
+function bindTokClicks(root) { root.querySelectorAll("[data-a]").forEach(el => el.onclick = () => { location.hash = el.dataset.a; }); }
+
+function renderTicker() {
+  const el = $("ticker"), rec = (statsData && statsData.recent || []).filter(r => showHidden || !(hiddenSet && hiddenSet.has(r.t)));
+  if (!rec.length) { el.style.display = "none"; return; }
+  const items = rec.map(r => `<a data-a="${r.t}"><span class="${r.buy ? "up" : "dn"}">${r.buy ? "▲ buy" : "▼ sell"}</span> $${esc(r.sym)} ${fmtEth(r.eth)} · ${ago(r.ts)}</a>`).join("");
+  el.innerHTML = `<div class="track">${items}${items}</div>`;
+  el.style.display = "";
+  bindTokClicks(el);
+}
+function renderTiles(all) {
+  const t = statsData && statsData.totals;
+  const grad = all ? all.filter(v => v.launch.graduated).length : null;
+  const cells = [["tokens", t ? t.tokens : all ? all.length : "—"], ["launched 24h", t ? t.launched24 : "—"], ["graduated", t ? t.graduated : grad ?? "—"],
+    ["trades 24h", t ? t.trades24 : "—"], [`volume 24h · ${SYM}`, t ? fmtEth(t.volume24) : "—"], ["wallets", t ? t.wallets : "—"]];
+  $("tiles").innerHTML = cells.map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${typeof v === "number" ? v.toLocaleString("en-US") : esc(v)}</div></div>`).join("");
+}
+function renderGrid() {
+  if (!homeAll) return;
+  let items = homeAll.visible.slice();
+  if (sortBy === "last") items.sort((a, b) => (stOf(b).last || 0) - (stOf(a).last || 0));
+  if (sortBy === "mcap") items.sort((a, b) => (b.price > a.price ? 1 : b.price < a.price ? -1 : 0));
+  if (sortBy === "grad") items = items.filter(v => v.launch.graduated);
+  items = items.slice(0, 100);
+  $("list").innerHTML = items.map(v => tokCard(v)).join("") || '<div class="card mut">Nothing here yet.</div>';
+  const nHidden = showHidden ? homeAll.hiddenCount : homeAll.skipped;
+  if (nHidden) $("list").insertAdjacentHTML("beforeend", `<div class="mut" style="grid-column:1/-1;text-align:center;font-size:13px;padding:6px 0">${showHidden ? `${nHidden} tokens from bot wallets are shown, marked <b style="color:var(--red)">BOT</b> · <a href="#" id="toggleHidden">hide them</a>` : `${nHidden} tokens from bot wallets are hidden · <a href="#" id="toggleHidden">show</a>`}</div>`);
+  if ($("toggleHidden")) $("toggleHidden").onclick = (e) => { e.preventDefault(); showHidden = !showHidden; loadList().catch(() => {}); };
+  bindTokClicks($("list"));
+}
 async function loadList() {
   if (NOT_DEPLOYED) { $("list").innerHTML = COMING_SOON; return; }
+  const statsP = loadStats();
   const n = await padR.tokenCount();
   if (n === 0n) { $("list").innerHTML = '<div class="card mut">No tokens yet. Be the first — hit <b>+ Launch</b>.</div>'; return; }
   const hidden = await loadHidden();
-  let items = [], skipped = 0;
-  for (let off = 0n; off < n && items.length < 100 && off < 500n; off += 100n) { // newest first; page past hidden ones
-    for (const v of await padR.getLaunches(off, 100n)) { if (!showHidden && hidden.has(v.token.toLowerCase())) skipped++; else items.push(v); }
-  }
-  items = items.slice(0, 100);
-  if (sortBy === "mcap") items.sort((a, b) => (b.price > a.price ? 1 : -1));
-  if (sortBy === "prog") items = items.filter(i => !i.launch.graduated).sort((a, b) => Number(b.progressBps - a.progressBps));
-  $("list").innerHTML = items.map(v => {
-    const l = v.launch, mcap = v.price * 1_000_000_000n, prog = Number(v.progressBps) / 100;
-    return `<div class="card tok" data-a="${v.token}">${avatar(v.meta, v.symbol)}
-      <div class="min0" style="flex:1"><div class="row sp"><b class="ell">${esc(v.name)}</b><span class="mut mono">$${esc(v.symbol)}</span></div>
-      <div class="mut ell">${esc(v.meta.description) || "&nbsp;"}</div>
-      <div class="row sp"><span class="mut">MC <b style="color:var(--txt)">${compact(mcap)} ${SYM}</b></span>
-        ${showHidden && hidden.has(v.token.toLowerCase()) ? '<span class="badge" style="background:#2a0d10;color:var(--red)">bot</span>' : l.graduated ? '<span class="badge">graduated</span>' : v.openingTaxBps > 0n ? '<span class="badge warn">new</span>' : l.creatorTaxBps > 0 ? `<span class="badge mutd">tax ${Number(l.creatorTaxBps) / 100}%</span>` : ""}</div>
-      <div class="bar"><i style="width:${prog}%"></i></div></div></div>`;
-  }).join("") || '<div class="card mut">Nothing here.</div>';
-  const nHidden = showHidden ? [...hidden].length : skipped;
-  if (nHidden) $("list").insertAdjacentHTML("beforeend", `<div class="mut" style="grid-column:1/-1;text-align:center;font-size:13px;padding:6px 0">${showHidden ? `${nHidden} tokens from bot wallets are shown, marked <b style="color:var(--red)">BOT</b> · <a href="#" id="toggleHidden">hide them</a>` : `${nHidden} tokens from bot wallets are hidden · <a href="#" id="toggleHidden">show</a>`}</div>`);
-  if ($("toggleHidden")) $("toggleHidden").onclick = (e) => { e.preventDefault(); showHidden = !showHidden; loadList().catch(() => {}); };
-  document.querySelectorAll(".tok").forEach(el => el.onclick = () => { location.hash = el.dataset.a; });
+  const all = [];
+  for (let off = 0n; off < n && off < 500n; off += 100n) all.push(...await padR.getLaunches(off, 100n)); // newest first
+  await statsP;
+  const isHidden = (v) => hidden.has(v.token.toLowerCase());
+  const visible = showHidden ? all : all.filter(v => !isHidden(v));
+  homeAll = { all, visible, skipped: all.length - visible.length, hiddenCount: all.filter(isHidden).length };
+  renderTicker();
+  renderTiles(all);
+  // Next to graduate + the closest ones + graduated tokens
+  const open = visible.filter(v => !v.launch.graduated).sort((a, b) => Number(b.progressBps - a.progressBps));
+  const top = open[0];
+  $("featured").innerHTML = top && top.progressBps > 0n ? (() => {
+    const prog = Number(top.progressBps) / 100;
+    return `<div class="feat" data-a="${top.token}">${avatar(top.meta, top.symbol, true)}<div class="min0" style="flex:1">
+      <div class="kick">next to graduate</div><h3 class="ell">${esc(top.name)} <span>$${esc(top.symbol)}</span></h3>
+      <div class="mut">mcap <b style="color:var(--txt)">${compact(top.price * 1_000_000_000n)} ${SYM}</b> · <b style="color:var(--txt)">${prog.toFixed(1)}%</b> to graduation</div>
+      <div class="seg" style="--w100:${(100 / Math.max(prog, 0.5) * 100).toFixed(2)}%"><i style="width:${prog}%"></i></div></div></div>`; })() : "";
+  const close = open.filter(v => v.progressBps > 0n).slice(0, 10);
+  $("rowClose").innerHTML = close.length > 1 ? `<div class="h2">closest to graduation<b>_</b></div><div class="hrow">${close.map(v => tokCard(v, "close")).join("")}</div>` : "";
+  const grads = visible.filter(v => v.launch.graduated).sort((a, b) => (stOf(b).vol || 0) - (stOf(a).vol || 0) || (b.price > a.price ? 1 : -1)).slice(0, 10);
+  $("rowGrad").innerHTML = grads.length ? `<div class="h2">graduated<b>_</b> <span class="mut" style="font:400 13px ui-sans-serif,system-ui,sans-serif">trading on ${DEX}</span></div><div class="hrow">${grads.map(v => tokCard(v)).join("")}</div>` : "";
+  bindTokClicks($("featured")); bindTokClicks($("rowClose")); bindTokClicks($("rowGrad"));
+  renderGrid();
+  clearInterval(homeTimer);
+  homeTimer = setInterval(async () => { if (location.hash || document.hidden) return; await loadStats(true); renderTicker(); renderTiles(homeAll && homeAll.all); }, 30000);
 }
-document.querySelectorAll("#sort button").forEach(b => b.onclick = () => { sortBy = b.dataset.s; document.querySelectorAll("#sort button").forEach(x => x.classList.toggle("on", x === b)); document.querySelectorAll("#sort button").forEach(x => x.style.borderColor = x === b ? "var(--acc)" : ""); loadList(); });
+document.querySelectorAll("#sort button").forEach(b => b.onclick = () => { sortBy = b.dataset.s; document.querySelectorAll("#sort button").forEach(x => { x.classList.toggle("on", x === b); x.style.borderColor = x === b ? "var(--acc)" : ""; }); renderGrid(); });
 document.querySelector('#sort button[data-s="new"]').style.borderColor = "var(--acc)";
+
+// ---------------- my coins ----------------
+async function showMine() {
+  const el = $("minePage"); el.style.display = "block"; window.scrollTo(0, 0);
+  const head = `<div class="hero"><div><h1>my <span>coins</span>.</h1><div class="mut">Tokens you launched and tokens you hold on ${esc(CFG.chainName)}.</div></div><button class="ghost sm" onclick="location.hash=''">← Back to tokens</button></div>`;
+  if (!account) { el.innerHTML = head + `<div class="card" style="max-width:520px"><div class="mut" style="margin-bottom:12px">Connect your wallet to see your tokens.</div><button id="mineConnect" style="width:100%">Connect wallet</button></div>`; $("mineConnect").onclick = () => connect().then(route).catch(e => toast(errMsg(e))); return; }
+  el.innerHTML = head + '<div class="card mut">Loading your tokens…</div>';
+  try {
+    const n = await padR.tokenCount(), all = [];
+    for (let off = 0n; off < n && off < 500n; off += 100n) all.push(...await padR.getLaunches(off, 100n));
+    await loadStats();
+    const me = account.toLowerCase();
+    const bals = await Promise.all(all.map(v => new ethers.Contract(v.token, ["function balanceOf(address) view returns (uint256)"], rp).balanceOf(account).catch(() => 0n)));
+    const launched = all.filter(v => v.launch.creator.toLowerCase() === me);
+    const held = all.map((v, i) => [v, bals[i]]).filter(([, b]) => b > 0n).sort((a, b) => (b[1] * b[0].price > a[1] * a[0].price ? 1 : -1));
+    if (location.hash !== "#mine") return;
+    const holdCard = ([v, b]) => tokCard(v).replace('<div class="bar">', `<div class="mut" style="font-size:12px;margin-top:4px">you hold <b style="color:var(--txt)">${compact(b)}</b> $${esc(v.symbol)} · ≈ ${num(b * v.price / 10n ** 18n, 6)} ${SYM}</div><div class="bar">`);
+    el.innerHTML = head
+      + `<div class="h2">launched by you<b>_</b> <span class="mut" style="font:400 13px ui-sans-serif,system-ui,sans-serif">${launched.length}</span></div>`
+      + (launched.length ? `<div class="grid" style="margin-bottom:26px">${launched.map(v => tokCard(v)).join("")}</div>` : `<div class="card mut" style="margin-bottom:26px">You haven't launched a token yet. <a href="#" onclick="openLaunch();return false">Launch one →</a></div>`)
+      + `<div class="h2">you hold<b>_</b> <span class="mut" style="font:400 13px ui-sans-serif,system-ui,sans-serif">${held.length}</span></div>`
+      + (held.length ? `<div class="grid">${held.map(holdCard).join("")}</div>` : `<div class="card mut">No tokens in this wallet yet.</div>`);
+    bindTokClicks(el);
+  } catch (e) { if (location.hash === "#mine") el.innerHTML = head + `<div class="card mut">Couldn't load your tokens. ${esc(errMsg(e))}</div>`; }
+}
+
+// ---------------- points page ----------------
+function renderEarn() {
+  const t = $("earnTable"); if (!t) return;
+  const c = PTS.conf; if (!c) { t.innerHTML = '<tr><td class="mut">Loading…</td></tr>'; return; }
+  const done = PTS.me ? PTS.me.done : (PTS.pending ? PTS.pending.done : []);
+  const next = c.tasks.find(x => !done.includes(x.id));
+  t.innerHTML = `<tr><th></th><th>quest</th><th style="text-align:right">points</th></tr>` + c.tasks.map(x => {
+    const ok = done.includes(x.id), now = next && next.id === x.id;
+    return `<tr class="${ok ? "done" : now ? "next" : ""}"><td class="st">${ok ? '<span style="color:var(--acc)">✓</span>' : now ? "→" : ""}</td><td>${esc(x.title)}<div class="mut" style="font-size:12px;font-weight:400">${x.kind === "x" ? `X quest · <a href="${esc(c.questsUrl)}">do it on the homepage</a>` : "testnet · counts right after your transaction"}</div></td><td class="mono" style="text-align:right">${ok ? "+" : ""}${fmtInt(c.pointsPerTask)}</td></tr>`;
+  }).join("") + `<tr><td></td><td class="mut" colspan="2" style="font-size:12px">Each quest counts once, in order. ${fmtInt(c.tasks.length * c.pointsPerTask)} points in total.</td></tr>`;
+}
+async function loadBoard() {
+  try {
+    const { rows } = await withTimeout(fetch("/api/leaderboard").then(x => x.json()), 8000);
+    const me = PTS.me ? short(PTS.me.address) : "";
+    $("lbTable").innerHTML = rows.length ? `<tr><th>#</th><th>player</th><th style="text-align:right">points</th></tr>` + rows.map(r => `<tr ${r.address === me ? 'style="color:var(--acc)"' : ""}><td class="mut mono">${r.rank}</td><td>${r.x ? "@" + esc(r.x) : `<span class="mono">${esc(r.address)}</span>`}</td><td class="mono" style="text-align:right">${fmtInt(r.points)}</td></tr>`).join("") : '<tr><td class="mut">No players yet.</td></tr>';
+  } catch { $("lbTable").innerHTML = '<tr><td class="mut">Leaderboard unavailable right now.</td></tr>'; }
+}
+function showPoints() {
+  $("pointsPage").style.display = "block"; window.scrollTo(0, 0);
+  if (!PTS_ON) { $("questBody").innerHTML = '<div class="mut">Points run on the testnet.</div>'; return; }
+  ptsRender(); if (!PTS.conf) ptsRefresh();
+  loadBoard();
+}
+
+// ---------------- bottom nav (phones) ----------------
+function setNav(h) {
+  document.querySelectorAll("#bnav [data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === (["mine", "points"].includes(h) ? h : ethers.isAddress(h) || h === "faucet" ? "-" : "")));
+}
+document.querySelectorAll("#bnav [data-go]").forEach(b => b.onclick = () => { location.hash = b.dataset.go; if (!b.dataset.go) window.scrollTo(0, 0); });
+$("bnLaunch").onclick = () => openLaunch().catch(e => toast(errMsg(e)));
 
 // ---------------- launch ----------------
 let launchFee = 0n;
@@ -727,7 +904,7 @@ async function showDetail(a) {
   clearInterval(tickTimer); clearInterval(histTimer);
   if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; }
   chartData = null;
-  $("home").style.display = "none"; $("faucetPage").style.display = "none"; $("detail").style.display = "block";
+  $("home").style.display = "none"; for (const id of ["faucetPage", "pointsPage", "minePage"]) $(id).style.display = "none"; $("detail").style.display = "block";
   const v = await padR.getLaunch(a), l = v.launch;
   const tokR = new ethers.Contract(a, TOKEN_ABI, rp);
   const [bal, nBal] = await Promise.all([account ? tokR.balanceOf(account) : 0n, account ? rp.getBalance(account) : 0n]);
@@ -951,9 +1128,11 @@ async function renderFaucetWallet(quiet) {
 function route() {
   const h = location.hash.slice(1);
   clearInterval(faucetTimer);
-  if (h !== "faucet") $("faucetPage").style.display = "none";
+  const pages = { faucet: ["faucetPage", showFaucet], points: ["pointsPage", showPoints], mine: ["minePage", showMine] };
+  for (const [k, [id]] of Object.entries(pages)) if (k !== h) $(id).style.display = "none";
+  setNav(h);
   if (ethers.isAddress(h) && !NOT_DEPLOYED) showDetail(h).catch(e => { toast(errMsg(e)); });
-  else if (h === "faucet" && CFG.testnet) { clearInterval(tickTimer); clearInterval(histTimer); if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; } $("detail").style.display = "none"; $("home").style.display = "none"; showFaucet(); }
+  else if (pages[h] && (h !== "faucet" || CFG.testnet)) { clearInterval(tickTimer); clearInterval(histTimer); if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; } $("detail").style.display = "none"; $("home").style.display = "none"; pages[h][1](); }
   else { clearInterval(tickTimer); clearInterval(histTimer); if (chartObj) { chartObj.remove(); chartObj = null; chartSeries = null; } $("detail").style.display = "none"; $("home").style.display = "block"; loadList().catch(e => { $("list").innerHTML = `<div class="card mut">Could not reach ${esc(CFG.chainName)} RPC. ${esc(errMsg(e))}</div>`; }); }
 }
 $("connect").onclick = (e) => {

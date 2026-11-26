@@ -25,6 +25,9 @@
     },
     "api/history.js": {
       "maxDuration": 30
+    },
+    "api/stats.js": {
+      "maxDuration": 30
     }
   }
 }
