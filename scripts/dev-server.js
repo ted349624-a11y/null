@@ -10,8 +10,20 @@ const root = path.resolve(process.argv[3] || path.join(__dirname, "../frontend")
 const apiDir = path.join(__dirname, "../api");
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".txt": "text/plain" };
 
+// The plain rewrites of vercel.json (":name" segments allowed; host-conditioned ones are handled below).
+const rewrites = (JSON.parse(fs.readFileSync(path.join(__dirname, "../vercel.json"), "utf8")).rewrites || [])
+  .filter((r) => !r.has && r.source !== "/")
+  .map((r) => ({ re: new RegExp("^" + r.source.replace(/:[a-z]+/gi, "[^/]+") + "$"), dest: r.destination }));
+
 http.createServer(async (req, res) => {
-  const url = new URL(req.url, "http://local");
+  let url = new URL(req.url, "http://local");
+  const rw = rewrites.find((r) => r.re.test(url.pathname));
+  if (rw) {
+    const d = new URL(rw.dest, "http://local");
+    url.searchParams.forEach((v, k) => { if (!d.searchParams.has(k)) d.searchParams.set(k, v); });
+    req.url = d.pathname + d.search;
+    url = d;
+  }
   const host = String(req.headers.host || "");
   const m = /^\/api\/([a-z-]+)$/.exec(url.pathname);
   if (m) {

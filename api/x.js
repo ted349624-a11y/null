@@ -1,7 +1,10 @@
 // POST { username } — links an X username to the signed-in wallet (one wallet per username) and
 // brings over the X quests already done under that username on the homepage.
+// Also serves the /apply form (/api/apply, /api/apply/responses; see lib/apply.js).
 const P = require("../lib/points");
+const A = require("../lib/apply");
 module.exports = P.handler(async (req, res) => {
+  if (A.isApply(req)) return A.handle(req, res);
   if (req.method !== "POST") throw P.fail(405, "POST only");
   const a = P.readToken(req);
   if (!a) throw P.fail(401, "Sign in again");

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Apply — null_</title>
+<meta name="description" content="Limited spots. Apply for null with your X username and EVM address." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308090b'/%3E%3Crect x='8' y='22' width='16' height='4' fill='%23c6ff3d'/%3E%3C/svg%3E" />
+<style>
+  :root { --bg:#08090b; --card:#111316; --card2:#0c0e10; --line:#1f2328; --line2:#2f353c; --txt:#eceff1; --mut:#7d8790; --acc:#c6ff3d; --accTxt:#0d1400; --red:#ff5d6c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--txt); }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
+  header { position:sticky; top:0; z-index:5; background:rgba(8,9,11,.85); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:space-between; padding:12px 24px; border-bottom:1px solid var(--line); }
+  .logo { font:700 22px/1 ui-monospace, Menlo, monospace; letter-spacing:-.5px; color:var(--txt); }
+  .logo b { color:var(--acc); } .logo:hover { text-decoration:none; }
+  main { max-width:660px; margin:0 auto; padding:24px 20px 8px; }
+  button, .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; background:var(--acc); color:var(--accTxt); border:0; border-radius:10px; padding:12px 22px; font-family:inherit; font-size:14px; font-weight:700; line-height:1.2; cursor:pointer; text-decoration:none !important; white-space:nowrap; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); font-weight:600; }
+  .ghost:hover { border-color:var(--line2); }
+  .sm { padding:7px 12px; font-size:13px; border-radius:9px; }
+  .plain { background:none; border:0; color:var(--mut); font-weight:600; padding:10px 6px; }
+  .plain:hover { color:var(--txt); }
+  .xg { width:14px; height:14px; flex:none; fill:currentColor; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px 22px 20px; margin-bottom:12px; }
+  .mut { color:var(--mut); }
+  .badge { display:inline-block; background:#1c2410; color:var(--acc); padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .star { color:var(--red); }
+
+  /* form header: accent strip on top, like a form's title card */
+  .head { position:relative; overflow:hidden; padding-top:28px; }
+  .head::before { content:""; position:absolute; inset:0 0 auto 0; height:6px; background:var(--acc); }
+  .head h1 { margin:12px 0 8px; font:700 34px/1.1 ui-monospace, Menlo, monospace; letter-spacing:-1.2px; }
+  .head h1 span { color:var(--acc); }
+  .head p { margin:0; color:var(--mut); }
+  .head .req { margin-top:16px; padding-top:14px; border-top:1px solid var(--line); font-size:13px; color:var(--mut); }
+
+  /* question cards */
+  .q { border-left:3px solid transparent; transition:border-color .15s; }
+  .q:focus-within { border-left-color:var(--acc); }
+  .q.bad { border-color:var(--red); border-left-color:var(--red); }
+  .qt { font-size:16px; font-weight:600; line-height:1.4; }
+  .qh { margin-top:4px; font-size:13px; color:var(--mut); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 4px; }
+  .chip { display:inline-flex; align-items:center; gap:7px; padding:8px 13px; border:1px solid var(--line); border-radius:999px; color:var(--txt); font-size:13px; font-weight:600; background:var(--card2); }
+  .chip:hover { border-color:var(--line2); text-decoration:none; }
+  .chip .ck { display:none; color:var(--acc); font-weight:800; }
+  .chip.on { border-color:#3a4a1a; }
+  .chip.on .ck { display:inline; }
+  .chip.on .ic { display:none; }
+  .tw { display:inline-block; margin-top:6px; font-size:13px; }
+  .field { display:flex; align-items:center; margin-top:16px; border-bottom:1px solid var(--line2); transition:border-color .15s; }
+  .field:focus-within { border-bottom:2px solid var(--acc); margin-bottom:-1px; }
+  .q.bad .field { border-bottom-color:var(--red); }
+  .field span { color:var(--mut); font:16px ui-monospace, Menlo, monospace; padding-right:2px; }
+  .field input { flex:1; min-width:0; background:transparent; border:0; outline:0; color:var(--txt); padding:10px 0; font:16px ui-monospace, Menlo, monospace; }
+  .field input::placeholder { color:#4b535b; font-family:ui-sans-serif, system-ui, sans-serif; }
+  .err { display:none; align-items:center; gap:6px; color:var(--red); font-size:13px; margin-top:10px; }
+  .q.bad .err { display:flex; }
+  .actions { display:flex; align-items:center; justify-content:space-between; margin:18px 0 6px; }
+  .note { font-size:12px; color:var(--mut); margin:14px 0 0; }
+  .formerr { color:var(--red); font-size:13px; margin-top:6px; min-height:1px; }
+
+  /* confirmation */
+  .ok { text-align:left; }
+  .ok .tick { width:44px; height:44px; border-radius:50%; background:#1c2410; color:var(--acc); display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:800; }
+  .ok h2 { margin:14px 0 4px; font-size:22px; }
+  .ok .num { font:700 40px/1.1 ui-monospace, Menlo, monospace; color:var(--acc); margin:14px 0 2px; }
+  .sum { margin-top:16px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .sum div { display:flex; justify-content:space-between; gap:12px; padding:11px 14px; font-size:14px; }
+  .sum div + div { border-top:1px solid var(--line); }
+  .sum span { flex:none; }
+  .sum b { font:600 14px ui-monospace, Menlo, monospace; overflow-wrap:anywhere; text-align:right; }
+  .ok .acts { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+  .ok .acts > * { flex:1 1 200px; }
+
+  /* responses (team only) */
+  .tools { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 0; }
+  .tools input { flex:1 1 200px; min-width:0; background:var(--card2); border:1px solid var(--line); border-radius:9px; color:var(--txt); padding:8px 12px; font:14px ui-monospace, Menlo, monospace; outline:0; }
+  .tools input:focus { border-color:var(--acc); }
+  .count { font:700 40px/1.1 ui-monospace, Menlo, monospace; margin:8px 0 0; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; font-size:11px; font-weight:600; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; padding:0 10px 8px; }
+  td { padding:10px; border-top:1px solid var(--line); vertical-align:top; }
+  td.n { color:var(--mut); font-family:ui-monospace, Menlo, monospace; width:1%; white-space:nowrap; }
+  td.a { font-family:ui-monospace, Menlo, monospace; font-size:13px; overflow-wrap:anywhere; }
+  td.t { color:var(--mut); font-size:12px; white-space:nowrap; width:1%; }
+  .tbl { padding:16px 12px 6px; overflow-x:auto; }
+  .empty { padding:18px 10px; color:var(--mut); text-align:center; }
+
+  footer { max-width:660px; margin:18px auto 40px; padding:16px 20px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between; color:var(--mut); font-size:13px; }
+  footer .links { display:flex; gap:18px; }
+  #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); background:#1a1d21; border:1px solid var(--line2); color:var(--txt); padding:10px 16px; border-radius:10px; font-size:14px; opacity:0; pointer-events:none; transition:.2s; z-index:20; }
+  #toast.show { opacity:1; transform:translateX(-50%); }
+  [hidden] { display:none !important; }
+  @media (max-width:600px) {
+    header { padding:10px 14px; } main { padding:16px 12px 4px; }
+    .card { padding:18px 16px 16px; } .head { padding-top:24px; }
+    .head h1 { font-size:28px; }
+    td.t { display:none; } th.t { display:none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="/">null<b>_</b></a>
+  <a class="btn ghost sm" id="hdrX" href="https://x.com/nullfamily" target="_blank" rel="noopener"><svg class="xg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg><span id="hdrXName">@nullfamily</span></a>
+</header>
+
+<main>
+  <!-- ===== the form ===== -->
+  <section id="formView">
+    <div class="card head">
+      <span class="badge">Limited spots</span>
+      <h1>Apply to null<span>_</span></h1>
+      <p>The launchpad is coming to Zero. Answer two quick questions to get on the list.</p>
+      <div class="req"><span class="star">*</span> Indicates required question</div>
+    </div>
+
+    <form id="form" novalidate autocomplete="off">
+      <div class="card q" id="qU">
+        <div class="qt" id="qUt">Like &amp; Retweet the latest tweet, then respond with your Twitter username &amp; follow <span class="xh">@nullfamily</span> <span class="star">*</span></div>
+        <div class="chips">
+          <a class="chip" data-k="like" id="cLike" href="https://x.com/nullfamily" target="_blank" rel="noopener"><span class="ic">♥</span><span class="ck">✓</span>Like</a>
+          <a class="chip" data-k="rt" id="cRt" href="https://x.com/nullfamily" target="_blank" rel="noopener"><span class="ic">⟲</span><span class="ck">✓</span>Retweet</a>
+          <a class="chip" data-k="follow" id="cFollow" href="https://x.com/intent/follow?screen_name=nullfamily" target="_blank" rel="noopener"><span class="ic">+</span><span class="ck">✓</span><span>Follow <span class="xh">@nullfamily</span></span></a>
+        </div>
+        <a class="tw" id="tweetLink" href="https://x.com/nullfamily" target="_blank" rel="noopener">Open the latest tweet ↗</a>
+        <label class="field"><span>@</span><input id="u" name="username" maxlength="40" autocapitalize="off" spellcheck="false" placeholder="Your answer" aria-labelledby="qUt" /></label>
+        <div class="err" id="eU">ⓘ <span></span></div>
+      </div>
+
+      <div class="card q" id="qA">
+        <div class="qt" id="qAt">Your EVM address <span class="star">*</span></div>
+        <div class="qh">The wallet you want on the list. It starts with 0x.</div>
+        <label class="field"><input id="a" name="address" maxlength="64" autocapitalize="off" spellcheck="false" placeholder="0x…" aria-labelledby="qAt" /></label>
+        <div class="err" id="eA">ⓘ <span></span></div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" id="send">Submit</button>
+        <button type="button" class="plain" id="clear">Clear form</button>
+      </div>
+      <div class="formerr" id="formErr"></div>
+      <p class="note">We only need your public address. null will never ask for your seed phrase or private key.</p>
+    </form>
+  </section>
+
+  <!-- ===== after submitting ===== -->
+  <section id="doneView" hidden>
+    <div class="card head ok">
+      <div class="tick">✓</div>
+      <h2 id="okTitle">Your response has been recorded</h2>
+      <div class="mut">You're on the list. Spots are limited, so keep an eye on <a class="xh2" href="https://x.com/nullfamily" target="_blank" rel="noopener">@nullfamily</a> for the next steps.</div>
+      <div class="num" id="okNum">#—</div>
+      <div class="mut" style="font-size:13px">your application number</div>
+      <div class="sum"><div><span class="mut">X username</span><b id="okU"></b></div><div><span class="mut">EVM address</span><b id="okA"></b></div></div>
+      <div class="acts">
+        <a class="btn" href="/">Earn points on quests →</a>
+        <a class="btn ghost" id="okX" href="https://x.com/nullfamily" target="_blank" rel="noopener"><svg class="xg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Open @nullfamily</a>
+      </div>
+      <div style="margin-top:14px"><button type="button" class="plain" id="edit" style="padding-left:0">Edit your response</button></div>
+    </div>
+  </section>
+
+  <!-- ===== responses: the null team only ===== -->
+  <section id="respView" hidden>
+    <div class="card head">
+      <span class="badge">Team only</span>
+      <h1 style="font-size:28px">Responses</h1>
+      <div id="respGate">
+        <p>Sign in with the null team wallet to see the applications. Signing is free: no transaction, no gas.</p>
+        <div style="margin-top:16px" id="respBtnWrap"></div>
+        <div class="formerr" id="respErr"></div>
+      </div>
+      <div id="respTop" hidden>
+        <div class="count" id="respCount">0</div>
+        <div class="mut" style="font-size:13px" id="respSub">applications</div>
+        <div class="tools">
+          <input id="respQ" placeholder="Search @name or 0x…" autocapitalize="off" spellcheck="false" />
+          <button class="ghost sm" id="csv">Download CSV</button>
+          <button class="ghost sm" id="cpA">Copy addresses</button>
+          <button class="ghost sm" id="cpU">Copy usernames</button>
+        </div>
+      </div>
+    </div>
+    <div class="card tbl" id="respTable" hidden></div>
+  </section>
+</main>
+
+<footer>
+  <div class="links"><a class="xh2" id="fX" href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a href="/">Quests</a></div>
+  <div>null<span style="color:var(--acc)">_</span> · limited spots</div>
+</footer>
+<div id="toast"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+  // The quests homepage keeps the X username as plain text under null_xu.
+  const rawGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const rawSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  let toastT;
+  const toast = (m) => { const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600); };
+  async function api(path, opts = {}) {
+    const r = await fetch("/api/" + path, { method: opts.body ? "POST" : "GET", headers: { "content-type": "application/json", ...(opts.token ? { authorization: "Bearer " + opts.token } : {}) }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    let j = {};
+    try { j = await r.json(); } catch {}
+    if (!r.ok) throw Object.assign(new Error(j.error || "Something went wrong. Try again."), { status: r.status, field: j.field });
+    return j;
+  }
+
+  // ---------- X links: the handle and the latest tweet come from the quest config ----------
+  let HANDLE = "nullfamily", TWEET = "";
+  const marks = () => store.get("null_apply_clicks") || {};
+  function paintLinks() {
+    const prof = "https://x.com/" + HANDLE;
+    document.querySelectorAll(".xh").forEach((e) => (e.textContent = "@" + HANDLE));
+    document.querySelectorAll(".xh2").forEach((e) => { e.href = prof; e.textContent = e.id === "fX" ? "X @" + HANDLE : "@" + HANDLE; });
+    $("hdrX").href = prof; $("hdrXName").textContent = "@" + HANDLE; $("okX").href = prof;
+    $("okX").lastChild.textContent = "Open @" + HANDLE;
+    $("cLike").href = TWEET ? "https://x.com/intent/like?tweet_id=" + TWEET : prof;
+    $("cRt").href = TWEET ? "https://x.com/intent/retweet?tweet_id=" + TWEET : prof;
+    $("cFollow").href = "https://x.com/intent/follow?screen_name=" + HANDLE;
+    $("tweetLink").href = TWEET ? prof + "/status/" + TWEET : prof;
+    $("tweetLink").textContent = TWEET ? "Open the latest tweet ↗" : "Open @" + HANDLE + " on X ↗";
+    const m = marks(), key = TWEET || "profile";
+    $("cLike").classList.toggle("on", m.like === key);
+    $("cRt").classList.toggle("on", m.rt === key);
+    $("cFollow").classList.toggle("on", Boolean(m.follow));
+  }
+  document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+    const m = marks(); m[c.dataset.k] = c.dataset.k === "follow" ? true : TWEET || "profile";
+    store.set("null_apply_clicks", m); setTimeout(paintLinks, 300);
+  }));
+  paintLinks();
+  api("config").then((c) => {
+    if (c.xHandle) HANDLE = c.xHandle;
+    const m = /status(?:es)?\/(\d+)/.exec(c.postUrl || "");
+    TWEET = m ? m[1] : "";
+    paintLinks();
+  }).catch(() => {});
+
+  // ---------- the form ----------
+  const fields = { username: ["qU", "eU"], address: ["qA", "eA"] };
+  function setErr(field, msg) {
+    const [q, e] = fields[field];
+    $(q).classList.toggle("bad", Boolean(msg));
+    $(e).querySelector("span").textContent = msg || "";
+  }
+  function check() {
+    const u = $("u").value.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "").split(/[/?#]/)[0];
+    const a = $("a").value.trim();
+    let ok = true;
+    if (!u) { setErr("username", "This is a required question."); ok = false; }
+    else if (!/^[A-Za-z0-9_]{1,15}$/.test(u)) { setErr("username", "Enter a valid X username: letters, numbers and _ only, up to 15."); ok = false; }
+    else setErr("username", "");
+    if (!a) { setErr("address", "This is a required question."); ok = false; }
+    else if (!/^0x[0-9a-fA-F]{40}$/.test(a)) { setErr("address", "Enter a valid EVM address: 0x followed by 40 characters."); ok = false; }
+    else setErr("address", "");
+    return ok ? { username: u, address: a } : null;
+  }
+  $("u").addEventListener("input", () => $("qU").classList.contains("bad") && check());
+  $("a").addEventListener("input", () => $("qA").classList.contains("bad") && check());
+  $("form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    $("formErr").textContent = "";
+    const v = check();
+    if (!v) { (document.querySelector(".q.bad input") || $("u")).focus(); return; }
+    const btn = $("send");
+    btn.disabled = true; btn.textContent = "Submitting…";
+    try {
+      const r = await api("apply", { body: v });
+      store.set("null_apply", { n: r.n, u: r.username, a: r.address, updated: r.updated });
+      rawSet("null_xu", r.username); // the quests homepage picks this up
+      showDone(store.get("null_apply"));
+    } catch (e) {
+      if (e.field && fields[e.field]) { setErr(e.field, e.message); $(fields[e.field][0]).querySelector("input").focus(); }
+      else $("formErr").textContent = e.message;
+    } finally { btn.disabled = false; btn.textContent = "Submit"; }
+  });
+  $("clear").onclick = () => { $("u").value = ""; $("a").value = ""; setErr("username", ""); setErr("address", ""); $("formErr").textContent = ""; $("u").focus(); };
+
+  function showDone(d) {
+    $("formView").hidden = true; $("doneView").hidden = false;
+    $("okTitle").textContent = d.updated ? "Your response has been updated" : "Your response has been recorded";
+    $("okNum").textContent = "#" + Number(d.n).toLocaleString("en-US");
+    $("okU").textContent = "@" + d.u; $("okA").textContent = d.a;
+    window.scrollTo(0, 0);
+  }
+  $("edit").onclick = () => {
+    const d = store.get("null_apply") || {};
+    $("u").value = d.u || ""; $("a").value = d.a || "";
+    $("doneView").hidden = true; $("formView").hidden = false; $("u").focus();
+  };
+
+  // ---------- responses (team wallet only) ----------
+  const ADMIN_KEY = "null_apply_admin";
+  let ROWS = [];
+  async function signIn() {
+    const btn = $("respSign"); $("respErr").textContent = "";
+    try {
+      btn.disabled = true; btn.textContent = "Check your wallet…";
+      const [account] = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const { message, issuedAt } = await api("login?address=" + account);
+      const hex = "0x" + Array.from(new TextEncoder().encode(message), (b) => b.toString(16).padStart(2, "0")).join("");
+      const signature = await window.ethereum.request({ method: "personal_sign", params: [hex, account] });
+      const r = await api("login", { body: { address: account, issuedAt, signature } });
+      store.set(ADMIN_KEY, r.token);
+      await loadResponses();
+    } catch (e) {
+      $("respErr").textContent = e.code === 4001 ? "Signature request was rejected." : e.message;
+      btn.disabled = false; btn.textContent = "Connect wallet";
+    }
+  }
+  function gate(msg) {
+    $("respGate").hidden = false; $("respTop").hidden = true; $("respTable").hidden = true;
+    const dapp = "https://metamask.app.link/dapp/" + location.host + "/apply/responses";
+    $("respBtnWrap").innerHTML = window.ethereum
+      ? '<button id="respSign">Connect wallet</button>'
+      : `<a class="btn" href="${esc(dapp)}">Open in MetaMask</a><div class="note">No wallet in this browser. Using another wallet app? Open <b>${esc(location.host)}/apply/responses</b> in its browser.</div>`;
+    if ($("respSign")) $("respSign").onclick = signIn;
+    $("respErr").textContent = msg || "";
+  }
+  async function loadResponses() {
+    const token = store.get(ADMIN_KEY);
+    if (!token) return gate();
+    try {
+      const r = await api("apply/responses", { token });
+      ROWS = r.items;
+      $("respGate").hidden = true; $("respTop").hidden = false; $("respTable").hidden = false;
+      $("respCount").textContent = r.count.toLocaleString("en-US");
+      $("respSub").textContent = r.count === 1 ? "application" : "applications";
+      renderRows();
+    } catch (e) {
+      if (e.status === 401 || e.status === 403) { store.set(ADMIN_KEY, null); return gate(e.status === 403 ? e.message : ""); }
+      gate(e.message);
+    }
+  }
+  function filtered() {
+    const q = $("respQ").value.trim().toLowerCase().replace(/^@/, "");
+    return q ? ROWS.filter((r) => r.u.toLowerCase().includes(q) || r.a.toLowerCase().includes(q)) : ROWS;
+  }
+  function renderRows() {
+    const rows = filtered();
+    const when = (t) => new Date(t).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    $("respTable").innerHTML = rows.length
+      ? `<table><thead><tr><th>#</th><th>X username</th><th>EVM address</th><th class="t">Time</th></tr></thead><tbody>${rows.slice().reverse().map((r) =>
+          `<tr><td class="n">${r.n}</td><td><a href="https://x.com/${esc(r.u)}" target="_blank" rel="noopener">@${esc(r.u)}</a></td><td class="a">${esc(r.a)}</td><td class="t">${esc(when(r.t))}</td></tr>`).join("")}</tbody></table>`
+      : `<div class="empty">${ROWS.length ? "No matches." : "No applications yet."}</div>`;
+  }
+  async function copy(text, what) {
+    try { await navigator.clipboard.writeText(text); toast(`Copied ${what}`); }
+    catch { toast("Copy failed. Use Download CSV instead."); }
+  }
+  $("respQ").oninput = renderRows;
+  $("cpA").onclick = () => { const r = filtered(); copy(r.map((x) => x.a).join("\n"), `${r.length} address${r.length === 1 ? "" : "es"}`); };
+  $("cpU").onclick = () => { const r = filtered(); copy(r.map((x) => "@" + x.u).join("\n"), `${r.length} username${r.length === 1 ? "" : "s"}`); };
+  $("csv").onclick = () => {
+    const cell = (s) => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    const lines = ["number,x_username,evm_address,submitted_at_utc", ...filtered().map((r) => [r.n, r.u, r.a, new Date(r.t).toISOString()].map(String).map(cell).join(","))];
+    const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "null-applications-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // ---------- which view ----------
+  if (/\/responses\/?$/.test(location.pathname) || location.hash === "#responses") {
+    document.title = "Responses — null_";
+    $("formView").hidden = true; $("respView").hidden = false;
+    loadResponses();
+  } else {
+    const prev = store.get("null_apply");
+    if (prev && prev.n) showDone(prev);
+    else { const xu = rawGet("null_xu"); if (xu && /^[A-Za-z0-9_]{1,15}$/.test(xu)) $("u").value = xu; }
+  }
+})();
+</script>
+</body>
+</html>

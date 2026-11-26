@@ -165,3 +165,12 @@ Token pages show a market-cap candlestick chart (Auto / 1m / 5m / 15m / 1h) and 
 
 ## Roadmap
 Price charts, comments, holder fee sharing, buyback & vest, cross-chain tokens via LayerZero OFT.
+
+## Apply form
+
+`/apply` is a short form (X username + EVM address), like a Google Form. Answers are stored in Redis
+(`ap:a`, `ap:u`, `ap:n`); one address per X username, and resubmitting from the same address updates the
+username but keeps the application number. The team sees the answers at `/apply/responses` after signing
+in with a wallet (no transaction): the launchpad owners from `deployments/` by default, plus any address in
+the `APPLY_ADMINS` env var (comma-separated). CSV download and copy buttons are there. The API lives in
+`lib/apply.js` and is served through `api/x.js` (`/api/apply`, `/api/apply/responses`).
