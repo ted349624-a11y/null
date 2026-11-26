@@ -3,6 +3,7 @@
 // recomputed at most every 30 seconds.
 const P = require("../lib/points");
 const X = require("../lib/indexer");
+const IX = require("../lib/chainindex");
 const { ethers } = P;
 
 const T = {
@@ -74,10 +75,10 @@ async function compute() {
   };
 }
 
-// Kept in this instance's memory; Redis only holds a backup (written every 5 minutes) for when the
-// indexer is down on a cold start. Keeps database commands low.
+// The old way (re-reading every event from Blockscout), kept only as a fallback while our own index is
+// catching up. In memory, with a Redis backup every 5 minutes.
 let memResult = null, savedAt = 0;
-module.exports = P.handler(async (req, res) => {
+async function legacy() {
   let result = memResult;
   if (!result || Date.now() - result.at > FRESH_MS) {
     try {
@@ -89,6 +90,32 @@ module.exports = P.handler(async (req, res) => {
     }
   }
   memResult = result;
+  return result;
+}
+
+// GET  -> { totals, recent, topLast, topMcap, graduated }     (homepage tiles, ticker, rankings)
+// POST { tokens: [...] } -> { tokens: { addr: { vol, traders, last, spark, ... } } }   (cards on screen)
+module.exports = P.handler(async (req, res) => {
+  await IX.sync(3500).catch(() => {});
+  const fromIndex = await IX.current().catch(() => false);
+  if (req.method === "POST") {
+    const { tokens } = await P.body(req);
+    if (!Array.isArray(tokens)) throw P.fail(400, "tokens: array of addresses");
+    let out;
+    if (fromIndex) out = await IX.tokenStats(tokens);
+    else { const all = (await legacy()).tokens || {}; out = {}; for (const t of tokens) { const k = String(t).toLowerCase(); if (all[k]) out[k] = all[k]; } }
+    res.statusCode = 200; res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store");
+    return res.end(JSON.stringify({ tokens: out }));
+  }
+  const who = new URL(req.url, "http://x").searchParams.get("mine");
+  if (who) { // tokens a wallet launched / traded, for "my coins"
+    if (!fromIndex) throw P.fail(503, "Index is catching up");
+    res.statusCode = 200; res.setHeader("content-type", "application/json"); res.setHeader("cache-control", "no-store");
+    return res.end(JSON.stringify(await IX.mine(who)));
+  }
+  let result;
+  if (fromIndex) result = { ...(await IX.summary()), src: "index" };
+  else { const l = await legacy(); result = { totals: l.totals, recent: l.recent, tokens: l.tokens, src: "legacy", at: l.at }; }
   res.statusCode = 200;
   res.setHeader("content-type", "application/json");
   res.setHeader("cache-control", "public, s-maxage=20, stale-while-revalidate=60");

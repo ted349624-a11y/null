@@ -476,16 +476,24 @@ async function loadHidden() {
   return hiddenSet || new Set();
 }
 // Activity from our server (testnet): totals, per-token volume / last trade / traders / price line, latest trades.
-let statsData = null, statsAt = 0, homeAll = null, homeTimer = null;
+// statsData: { totals, recent, topLast, topMcap, graduated } from our index (or { totals, recent, tokens } from
+// the fallback). tokStats: per-token numbers for the cards on screen, fetched for just those tokens.
+let statsData = null, statsAt = 0, homeAll = null, homeTimer = null, tokStats = {};
 async function loadStats(force) {
   if (!CFG.testnet) return null;
   if (statsData && !force && Date.now() - statsAt < 20000) return statsData;
-  try { statsData = await withTimeout(fetch("/api/stats").then(x => x.ok ? x.json() : Promise.reject()), 8000); statsAt = Date.now(); } catch {}
+  try { statsData = await withTimeout(fetch("/api/stats").then(x => x.ok ? x.json() : Promise.reject()), 8000); statsAt = Date.now(); if (statsData.tokens) Object.assign(tokStats, statsData.tokens); } catch {}
   return statsData;
+}
+async function loadTokStats(addrs) {
+  if (!CFG.testnet || (statsData && statsData.tokens)) return; // the fallback already sent everything
+  const want = [...new Set(addrs.map(a => a.toLowerCase()))].slice(0, 200);
+  if (!want.length) return;
+  try { const r = await withTimeout(fetch("/api/stats", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tokens: want }) }).then(x => x.json()), 8000); Object.assign(tokStats, r.tokens || {}); } catch {}
 }
 const ago = (sec) => { const d = Math.max(0, Date.now() / 1000 - Number(sec)); return d < 60 ? "now" : d < 3600 ? Math.floor(d / 60) + "m" : d < 86400 ? Math.floor(d / 3600) + "h" : Math.floor(d / 86400) + "d"; };
 const fmtEth = (n) => n === undefined || n === null ? "—" : n === 0 ? "0" : n < 0.0001 ? "<0.0001" : n.toLocaleString("en-US", { maximumFractionDigits: n < 1 ? 4 : 2 });
-const stOf = (v) => (statsData && statsData.tokens && statsData.tokens[v.token.toLowerCase()]) || {};
+const stOf = (v) => tokStats[v.token.toLowerCase()] || {};
 function spark(arr) {
   if (!arr || arr.length < 2) return "";
   const w = 120, h = 26, lo = Math.min(...arr), hi = Math.max(...arr), span = hi - lo || 1;
@@ -503,7 +511,7 @@ function tokCard(v, mode) {
     <div class="min0" style="flex:1"><div class="row sp"><b class="ell">${esc(v.name)}</b><span class="mut mono">$${esc(v.symbol)}</span></div>
     <div class="row sp sub"><span class="meta ell">by ${short(l.creator)} · ${ago(l.createdAt)}</span>${badge}</div>
     <div class="nums"><span class="mut">mcap <b>${compact(mcap)} ${SYM}</b></span><span class="mut">vol <b>${fmtEth(st.vol)}</b></span></div>
-    <div class="meta ell">${st.traders === undefined ? "&nbsp;" : st.traders + " trader" + (st.traders === 1 ? "" : "s")}${st.last ? ` · last trade ${ago(st.last)}` : ""}</div>
+    <div class="meta ell">${st.traders === undefined ? "&nbsp;" : st.traders + (st.tradersMore ? "+" : "") + " trader" + (st.traders === 1 && !st.tradersMore ? "" : "s")}${st.last ? ` · last trade ${ago(st.last)}` : ""}</div>
     ${l.graduated ? spark(st.spark) : ""}
     <div class="bar"><i style="width:${prog}%"></i></div></div></div>`;
 }
@@ -520,19 +528,33 @@ function renderTicker() {
 function renderTiles(all) {
   const t = statsData && statsData.totals;
   const grad = all ? all.filter(v => v.launch.graduated).length : null;
-  const cells = [["tokens", t ? t.tokens : all ? all.length : "—"], ["launched 24h", t ? t.launched24 : "—"], ["graduated", t ? t.graduated : grad ?? "—"],
+  const cells = [["tokens", homeAll && homeAll.count !== undefined ? homeAll.count : t && t.tokens !== undefined ? t.tokens : "—"], ["launched 24h", t ? t.launched24 : "—"], ["graduated", t ? t.graduated : grad ?? "—"],
     ["trades 24h", t ? t.trades24 : "—"], [`volume 24h · ${SYM}`, t ? fmtEth(t.volume24) : "—"], ["wallets", t ? t.wallets : "—"]];
   $("tiles").innerHTML = cells.map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${typeof v === "number" ? v.toLocaleString("en-US") : esc(v)}</div></div>`).join("");
 }
+// Tokens for a tab: newest = the pages loaded so far; the others follow the server's rankings (falling back
+// to sorting what's loaded).
+function tabItems() {
+  const H = homeAll, ok = (v) => v && (showHidden || !H.hidden.has(v.token.toLowerCase()));
+  const pick = (addrs) => addrs.map(a => H.known.get(a.toLowerCase())).filter(ok);
+  const loaded = H.newest.filter(ok);
+  if (sortBy === "last") return statsData && statsData.topLast ? pick(statsData.topLast) : loaded.slice().sort((a, b) => (stOf(b).last || 0) - (stOf(a).last || 0));
+  if (sortBy === "mcap") return statsData && statsData.topMcap ? pick(statsData.topMcap) : loaded.slice().sort((a, b) => (b.price > a.price ? 1 : b.price < a.price ? -1 : 0));
+  if (sortBy === "grad") return gradList();
+  return loaded;
+}
+function gradList() {
+  const H = homeAll, ok = (v) => v && (showHidden || !H.hidden.has(v.token.toLowerCase()));
+  const list = statsData && statsData.graduated ? statsData.graduated.map(a => H.known.get(a.toLowerCase())) : [...H.known.values()].filter(v => v.launch.graduated);
+  return list.filter(ok).filter(v => v.launch.graduated).sort((a, b) => (stOf(b).vol || 0) - (stOf(a).vol || 0) || (b.price > a.price ? 1 : -1));
+}
 function renderGrid() {
   if (!homeAll) return;
-  let items = homeAll.visible.slice();
-  if (sortBy === "last") items.sort((a, b) => (stOf(b).last || 0) - (stOf(a).last || 0));
-  if (sortBy === "mcap") items.sort((a, b) => (b.price > a.price ? 1 : b.price < a.price ? -1 : 0));
-  if (sortBy === "grad") items = items.filter(v => v.launch.graduated);
-  items = items.slice(0, 100);
+  const items = tabItems();
   $("list").innerHTML = items.map(v => tokCard(v)).join("") || '<div class="card mut">Nothing here yet.</div>';
-  const nHidden = showHidden ? homeAll.hiddenCount : homeAll.skipped;
+  if (sortBy === "new" && homeAll.offset < homeAll.count) $("list").insertAdjacentHTML("beforeend", `<div style="grid-column:1/-1;text-align:center;padding:4px 0"><button class="ghost" id="loadMore">Load more · ${(homeAll.count - homeAll.offset).toLocaleString("en-US")} older</button></div>`);
+  if ($("loadMore")) $("loadMore").onclick = loadMore;
+  const nHidden = homeAll.newest.filter(v => homeAll.hidden.has(v.token.toLowerCase())).length;
   if (nHidden) $("list").insertAdjacentHTML("beforeend", `<div class="mut" style="grid-column:1/-1;text-align:center;font-size:13px;padding:6px 0">${showHidden ? `${nHidden} tokens from bot wallets are shown, marked <b style="color:var(--red)">BOT</b> · <a href="#" id="toggleHidden">hide them</a>` : `${nHidden} tokens from bot wallets are hidden · <a href="#" id="toggleHidden">show</a>`}</div>`);
   if ($("toggleHidden")) $("toggleHidden").onclick = (e) => { e.preventDefault(); showHidden = !showHidden; loadList().catch(() => {}); };
   bindTokClicks($("list"));
@@ -540,19 +562,22 @@ function renderGrid() {
 async function loadList() {
   if (NOT_DEPLOYED) { $("list").innerHTML = COMING_SOON; return; }
   const statsP = loadStats();
-  const n = await padR.tokenCount();
-  if (n === 0n) { $("list").innerHTML = '<div class="card mut">No tokens yet. Be the first — hit <b>+ Launch</b>.</div>'; return; }
-  const hidden = await loadHidden();
-  const all = [];
-  for (let off = 0n; off < n && off < 500n; off += 100n) all.push(...await padR.getLaunches(off, 100n)); // newest first
+  const count = Number(await padR.tokenCount());
+  if (count === 0) { $("list").innerHTML = '<div class="card mut">No tokens yet. Be the first — hit <b>+ Launch</b>.</div>'; return; }
+  const [hidden, newest] = await Promise.all([loadHidden(), padR.getLaunches(0n, 100n).then(a => [...a])]); // newest first, 100 at a time
   await statsP;
-  const isHidden = (v) => hidden.has(v.token.toLowerCase());
-  const visible = showHidden ? all : all.filter(v => !isHidden(v));
-  homeAll = { all, visible, skipped: all.length - visible.length, hiddenCount: all.filter(isHidden).length };
+  const known = new Map(newest.map(v => [v.token.toLowerCase(), v]));
+  // Tokens the rankings mention that aren't on the first page (most active, biggest, graduated).
+  const extra = statsData ? [...new Set([...(statsData.topLast || []).slice(0, 60), ...(statsData.topMcap || []).slice(0, 60), ...(statsData.graduated || []).slice(0, 100)])].filter(a => !known.has(a.toLowerCase())) : [];
+  const got = await Promise.all(extra.slice(0, 150).map(a => padR.getLaunch(a).catch(() => null)));
+  for (const v of got) if (v && v.token !== ethers.ZeroAddress) known.set(v.token.toLowerCase(), v);
+  homeAll = { known, newest, offset: newest.length, count, hidden };
+  await loadTokStats([...known.keys()]);
   renderTicker();
-  renderTiles(all);
+  renderTiles(newest);
+  const ok = (v) => showHidden || !hidden.has(v.token.toLowerCase());
   // Next to graduate + the closest ones + graduated tokens
-  const open = visible.filter(v => !v.launch.graduated).sort((a, b) => Number(b.progressBps - a.progressBps));
+  const open = [...known.values()].filter(v => ok(v) && !v.launch.graduated).sort((a, b) => Number(b.progressBps - a.progressBps));
   const top = open[0];
   $("featured").innerHTML = top && top.progressBps > 0n ? (() => {
     const prog = Number(top.progressBps) / 100;
@@ -562,12 +587,22 @@ async function loadList() {
       <div class="seg" style="--w100:${(100 / Math.max(prog, 0.5) * 100).toFixed(2)}%"><i style="width:${prog}%"></i></div></div></div>`; })() : "";
   const close = open.filter(v => v.progressBps > 0n).slice(0, 10);
   $("rowClose").innerHTML = close.length > 1 ? `<div class="h2">closest to graduation<b>_</b></div><div class="hrow">${close.map(v => tokCard(v, "close")).join("")}</div>` : "";
-  const grads = visible.filter(v => v.launch.graduated).sort((a, b) => (stOf(b).vol || 0) - (stOf(a).vol || 0) || (b.price > a.price ? 1 : -1)).slice(0, 10);
+  const grads = gradList().slice(0, 10);
   $("rowGrad").innerHTML = grads.length ? `<div class="h2">graduated<b>_</b> <span class="mut" style="font:400 13px ui-sans-serif,system-ui,sans-serif">trading on ${DEX}</span></div><div class="hrow">${grads.map(v => tokCard(v)).join("")}</div>` : "";
   bindTokClicks($("featured")); bindTokClicks($("rowClose")); bindTokClicks($("rowGrad"));
   renderGrid();
   clearInterval(homeTimer);
-  homeTimer = setInterval(async () => { if (location.hash || document.hidden) return; await loadStats(true); renderTicker(); renderTiles(homeAll && homeAll.all); }, 30000);
+  homeTimer = setInterval(async () => { if (location.hash || document.hidden) return; await loadStats(true); renderTicker(); renderTiles(homeAll && homeAll.newest); }, 30000);
+}
+async function loadMore() {
+  const b = $("loadMore"); if (b) { b.disabled = true; b.textContent = "Loading…"; }
+  try {
+    const more = [...await padR.getLaunches(BigInt(homeAll.offset), 100n)];
+    for (const v of more) homeAll.known.set(v.token.toLowerCase(), v);
+    homeAll.newest.push(...more); homeAll.offset += more.length;
+    await loadTokStats(more.map(v => v.token));
+    renderGrid();
+  } catch (e) { toast(errMsg(e)); if (b) { b.disabled = false; b.textContent = "Load more"; } }
 }
 document.querySelectorAll("#sort button").forEach(b => b.onclick = () => { sortBy = b.dataset.s; document.querySelectorAll("#sort button").forEach(x => { x.classList.toggle("on", x === b); x.style.borderColor = x === b ? "var(--acc)" : ""; }); renderGrid(); });
 document.querySelector('#sort button[data-s="new"]').style.borderColor = "var(--acc)";
@@ -579,10 +614,12 @@ async function showMine() {
   if (!account) { el.innerHTML = head + `<div class="card" style="max-width:520px"><div class="mut" style="margin-bottom:12px">Connect your wallet to see your tokens.</div><button id="mineConnect" style="width:100%">Connect wallet</button></div>`; $("mineConnect").onclick = () => connect().then(route).catch(e => toast(errMsg(e))); return; }
   el.innerHTML = head + '<div class="card mut">Loading your tokens…</div>';
   try {
-    const n = await padR.tokenCount(), all = [];
-    for (let off = 0n; off < n && off < 500n; off += 100n) all.push(...await padR.getLaunches(off, 100n));
-    await loadStats();
     const me = account.toLowerCase();
+    let all = null;
+    // Our index knows which tokens this wallet launched and traded, however old; otherwise scan the newest 500.
+    if (CFG.testnet) { try { const r = await withTimeout(fetch(`/api/stats?mine=${me}`).then(x => x.ok ? x.json() : Promise.reject()), 8000); const addrs = [...new Set([...r.launched, ...r.traded])].slice(0, 300); all = (await Promise.all(addrs.map(a => padR.getLaunch(a).catch(() => null)))).filter(v => v && v.token !== ethers.ZeroAddress).sort((a, b) => Number(b.launch.createdAt - a.launch.createdAt)); } catch { all = null; } }
+    if (!all) { const n = await padR.tokenCount(); all = []; for (let off = 0n; off < n && off < 500n; off += 100n) all.push(...await padR.getLaunches(off, 100n)); }
+    await loadStats(); await loadTokStats(all.map(v => v.token));
     const bals = await Promise.all(all.map(v => new ethers.Contract(v.token, ["function balanceOf(address) view returns (uint256)"], rp).balanceOf(account).catch(() => 0n)));
     const launched = all.filter(v => v.launch.creator.toLowerCase() === me);
     const held = all.map((v, i) => [v, bals[i]]).filter(([, b]) => b > 0n).sort((a, b) => (b[1] * b[0].price > a[1] * a[0].price ? 1 : -1));

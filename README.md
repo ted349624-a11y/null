@@ -142,6 +142,16 @@ Settings: the X account and post go in `lib/quest-config.js`, or in the `X_HANDL
 
 Local run (points in memory): `node scripts/dev-server.js 8095`, then open `http://localhost:8095` (quests) and `http://testnet.localhost:8095` (testnet app).
 
+## Activity index
+
+Charts, trade lists, the homepage tiles, ticker and rankings, and "my coins" read from our own index in Redis (`lib/chainindex.js`), not from a third-party indexer at request time:
+
+- Backfilled once from Blockscout, then it follows the chain over the public RPC in 200-block chunks (the most the RPC allows), at most once a minute, whenever someone asks for data. If Blockscout is down it rebuilds from the chain alone.
+- A user's own trade is added from its receipt right after it confirms (`POST /api/history`), so it shows at once.
+- While storing it keeps running summaries (per-token numbers, hourly totals, wallets, latest trades, rankings, per-wallet token sets), so reading them costs a handful of commands; most requests are answered from memory.
+- `GET /api/history?status=1` shows where it stands (last indexed block, chain head, lag, last error).
+- Load-tested locally with 1,000 launches, 2,120 trades and 5 graduations: every number matched the chain, the phone homepage showed tokens in ~1s.
+
 ## Charts and trade history
 
 Token pages show a market-cap candlestick chart (Auto / 1m / 5m / 15m / 1h) and the latest trades from both the bonding curve and the pool. Base's public RPCs refuse wide `eth_getLogs` ranges, so the site reads history from the chain's public Blockscout API (`logApi` in the config; no key, timestamps included) and falls back to the wallet's RPC. Charts use TradingView's open-source [Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0, vendored in `frontend/vendor/` with its license).
