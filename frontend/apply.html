@@ -106,11 +106,11 @@
       <div class="card q" id="qU">
         <div class="qt" id="qUt">Like &amp; Retweet the latest tweet, then respond with your Twitter username &amp; follow <span class="xh">@nullfamily</span> <span class="star">*</span></div>
         <div class="chips">
-          <a class="chip" data-k="like" id="cLike" href="https://x.com/nullfamily" target="_blank" rel="noopener"><span class="ic">♥</span><span class="ck">✓</span>Like</a>
-          <a class="chip" data-k="rt" id="cRt" href="https://x.com/nullfamily" target="_blank" rel="noopener"><span class="ic">⟲</span><span class="ck">✓</span>Retweet</a>
+          <a class="chip" data-k="like" id="cLike" href="https://x.com/intent/like?tweet_id=2126068982738231723" target="_blank" rel="noopener"><span class="ic">♥</span><span class="ck">✓</span>Like</a>
+          <a class="chip" data-k="rt" id="cRt" href="https://x.com/intent/retweet?tweet_id=2126068982738231723" target="_blank" rel="noopener"><span class="ic">⟲</span><span class="ck">✓</span>Retweet</a>
           <a class="chip" data-k="follow" id="cFollow" href="https://x.com/intent/follow?screen_name=nullfamily" target="_blank" rel="noopener"><span class="ic">+</span><span class="ck">✓</span><span>Follow <span class="xh">@nullfamily</span></span></a>
         </div>
-        <a class="tw" id="tweetLink" href="https://x.com/nullfamily" target="_blank" rel="noopener">Open the latest tweet ↗</a>
+        <a class="tw" id="tweetLink" href="https://x.com/nullfamily/status/2126068982738231723" target="_blank" rel="noopener">Open the latest tweet ↗</a>
         <label class="field"><span>@</span><input id="u" name="username" maxlength="40" autocapitalize="off" spellcheck="false" placeholder="Your answer" aria-labelledby="qUt" /></label>
         <div class="err" id="eU">ⓘ <span></span></div>
       </div>
@@ -176,7 +176,9 @@
   const prefilled = (v) => `${GFORM}/viewform?usp=pp_url&${ENTRY.username}=${encodeURIComponent(v.username)}&${ENTRY.address}=${encodeURIComponent(v.address)}`;
 
   // ---------- X links: the handle and the latest tweet come from the quest config ----------
-  let HANDLE = "nullfamily", TWEET = "";
+  // The tweet this form asks people to like and retweet (separate from the quests' announcement post).
+  const APPLY_TWEET = "2126068982738231723";
+  let HANDLE = "nullfamily", TWEET = APPLY_TWEET;
   const marks = () => store.get("null_apply_clicks") || {};
   function paintLinks() {
     const prof = "https://x.com/" + HANDLE;
@@ -202,8 +204,6 @@
   api("config").then((c) => {
     if (c.xHandle) HANDLE = c.xHandle;
     if (c.testnet && /^https:\/\//.test(c.testnet.url || "")) $("okTest").href = c.testnet.url;
-    const m = /status(?:es)?\/(\d+)/.exec(c.postUrl || "");
-    TWEET = m ? m[1] : "";
     paintLinks();
   }).catch(() => {});
 
