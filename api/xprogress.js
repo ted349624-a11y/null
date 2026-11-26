@@ -6,7 +6,7 @@ const P = require("../lib/points");
 async function state(h) {
   const lc = h.toLowerCase();
   const [p, owner] = [await P.xProgress(lc), await P.redis(["GET", `x:${lc}`])];
-  return { username: p.name || h, done: p.done, linked: Boolean(owner), owner };
+  return { username: p.name || h, done: p.done, points: p.points, redo: p.redo, linked: Boolean(owner), owner };
 }
 module.exports = P.handler(async (req, res) => {
   if (req.method === "GET") {

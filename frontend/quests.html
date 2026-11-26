@@ -131,7 +131,7 @@ const testnetLink = () => (P ? testnetUrl() + "/?xu=" + encodeURIComponent(P.use
 
 function render() {
   const xs = xTasks(), done = P ? P.done : [];
-  $("sPts").textContent = fmt(done.length * (CONF?.pointsPerTask || 500));
+  $("sPts").textContent = fmt(P && P.points !== undefined ? P.points : done.length * (CONF?.pointsPerTask || 500));
   $("sDone").textContent = `${done.length}/${xs.length}`;
   for (const id of ["hdrTest", "fTest"]) $(id).href = testnetLink();
   const stage = $("stage");
@@ -146,6 +146,8 @@ function render() {
   const next = xs.find((t) => !done.includes(t.id));
   const pts = CONF.pointsPerTask, chainPts = chainTasks().length * pts;
   let html = `<div class="who"><span>Questing as <b>@${esc(P.username)}</b></span><a href="#" id="change">Not you?</a></div>`;
+  const postLeft = xs.filter((t) => t.post && !done.includes(t.id));
+  if (P.redo && postLeft.length) html += `<div class="card cta enter" style="margin-bottom:14px"><div><h3>New post is live <span class="badge">+${fmt(postLeft.length * pts)}</span></h3><div class="mut">Like, repost and reply to the new announcement to earn its points too. Your earlier points stay.</div></div></div>`;
   if (!next) {
     html += `<div class="card cta enter"><div><h3>X quests complete <span class="badge">+${fmt(done.length * pts)}</span></h3><div class="mut">Your points are coming with you. On the testnet, connect your wallet to save them, then earn ${fmt(chainPts)} more.</div></div><a class="btn" href="${esc(testnetLink())}">Go to testnet →</a></div>`;
   } else {

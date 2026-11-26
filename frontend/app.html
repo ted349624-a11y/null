@@ -374,21 +374,27 @@ function ptsRender() {
     $("ptsX").oninput = () => { const v = $("ptsX").value.trim().replace(/^@/, ""); store.set("null_xu", v || null); };
     return;
   }
-  const done = me.done, next = c.tasks.find(t => !done.includes(t.id));
+  const done = me.done, baseDone = ["follow", "notify"].every(b => done.includes(b));
+  const nextX = xs.find(t => !done.includes(t.id)), nextChain = chain.find(t => !done.includes(t.id));
+  const next = baseDone ? nextChain : nextX; // testnet quests unlock after follow + notifications; post quests run alongside
   const xDone = xs.filter(t => done.includes(t.id)).length;
   let h = `<div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><div class="mut">Points</div><div class="v" style="color:var(--acc)">${fmtInt(me.points)}</div></div><div class="stat"><div class="mut">Rank</div><div class="v">${me.rank ? "#" + fmtInt(me.rank) : "—"}</div></div><div class="stat"><div class="mut">Quests</div><div class="v">${done.length}/${c.tasks.length}</div></div></div>`;
   if (!me.x) {
     h += `<div class="qcur"><span class="badge">Step 1</span><div style="font-weight:700;font-size:16px;margin:8px 0 4px">Link your X username</div><div class="mut">Use the same username as on <a href="${qUrl}">${qHost}</a> to bring your X quest points.</div>
       <div class="row" style="margin-top:12px"><input id="ptsLinkIn" class="mono" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="@yourname" /><button class="sm" id="ptsLinkBtn">Link</button></div><div class="r" id="ptsErr" style="font-size:13px;margin-top:8px"></div></div>`;
-  } else if (next && next.kind === "x") {
-    h += `<div class="qcur"><span class="badge">Step 1</span><div style="font-weight:700;font-size:16px;margin:8px 0 4px">Finish the X quests first</div><div class="mut">${xDone} of ${xs.length} done. Testnet quests unlock after them.</div><a href="${qUrl}" style="display:block;margin-top:12px"><button style="width:100%">Open X quests ↗</button></a></div>`;
+  } else if (!baseDone) {
+    h += `<div class="qcur"><span class="badge">Step 1</span><div style="font-weight:700;font-size:16px;margin:8px 0 4px">Do the X quests first</div><div class="mut">${xDone} of ${xs.length} done. Testnet quests unlock after them.</div><a href="${qUrl}" style="display:block;margin-top:12px"><button style="width:100%">Open X quests ↗</button></a></div>`;
   } else if (next) {
     h += `<div class="qcur"><div class="row wrap" style="gap:6px"><span class="badge">Next quest</span><span class="badge mutd">+${fmtInt(c.pointsPerTask)} pts</span></div>
       <div style="font-weight:700;font-size:16px;margin:8px 0 4px">${esc(next.title)}</div>${next.hint ? `<div class="mut">${esc(next.hint)}</div>` : ""}
       <div class="mut" style="margin-top:6px">Points are added automatically after your transaction confirms. Need test ${SYM}? <a href="#faucet" onclick="closeQuests()">Get it free</a>. Did it already? Check it now:</div>
       <button id="ptsVerify" class="ghost" style="width:100%;margin-top:10px">Verify</button><div class="r" id="ptsErr" style="font-size:13px;margin-top:8px"></div></div>`;
-  } else {
+  } else if (!nextX) {
     h += `<div class="qcur"><div style="font-weight:700;font-size:16px">All quests complete ✓</div><div class="mut">Nice. Keep launching and trading; more quests are coming.</div></div>`;
+  }
+  if (me.x && baseDone && nextX) {
+    const left = xs.filter(t => !done.includes(t.id));
+    h += `<div class="qcur"><div class="row wrap" style="gap:6px"><span class="badge">New on X</span><span class="badge mutd">+${fmtInt(left.length * c.pointsPerTask)} pts</span></div><div style="font-weight:700;font-size:16px;margin:8px 0 4px">${left.length > 1 ? `${left.length} X quests are waiting` : esc(left[0].title)}</div><div class="mut">${left.map(t => esc(t.title)).join(" · ")}</div><a href="${qUrl}" style="display:block;margin-top:12px"><button class="ghost" style="width:100%">Do them on the homepage ↗</button></a></div>`;
   }
   const row = (t) => { const ok = done.includes(t.id), now = next && t.id === next.id; return `<div class="it ${ok ? "ok" : now ? "now" : ""}"><span class="ic">${ok ? "✓" : now ? "→" : ""}</span><span class="tt">${esc(t.title)}</span><span class="pp">${ok ? "+" : ""}${fmtInt(c.pointsPerTask)}</span></div>`; };
   h += `<div class="qlist">${chain.map(row).join("")}<div class="it ${xDone === xs.length ? "ok" : ""}"><span class="ic">${xDone === xs.length ? "✓" : ""}</span><span class="tt">X quests (${xDone}/${xs.length})</span><span class="pp">${xDone === xs.length ? "+" : ""}${fmtInt(xs.length * c.pointsPerTask)}</span></div></div>`;
@@ -438,8 +444,9 @@ async function ptsTry(task, hash, loud) {
 }
 async function ptsAfterTx(hash) {
   if (!PTS_ON || !PTS.me || !PTS.conf) return;
-  const next = PTS.conf.tasks.find(t => !PTS.me.done.includes(t.id));
-  if (!next || next.kind !== "chain") return;
+  if (!["follow", "notify"].every(b => PTS.me.done.includes(b))) return;
+  const next = PTS.conf.tasks.find(t => t.kind === "chain" && !PTS.me.done.includes(t.id));
+  if (!next) return;
   try { await ptsTry(next, hash); } catch {}
 }
 

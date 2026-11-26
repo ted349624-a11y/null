@@ -11,9 +11,10 @@ module.exports = P.handler(async (req, res) => {
   const profile = await P.getProfile(a);
   if (!profile.x) throw P.fail(400, "Add your X username first.");
   if (profile.done.includes(id)) return P.send(res, 200, profile);
-  const next = tasks.find((t) => !profile.done.includes(t.id));
-  if (!next || next.id !== id) throw P.fail(400, "Finish the tasks in order.");
   const task = tasks[idx];
+  if (task.kind === "chain" && !P.BASE_X.every((b) => profile.done.includes(b))) throw P.fail(400, "Do the X quests first.");
+  const next = tasks.filter((t) => t.kind === task.kind).find((t) => !profile.done.includes(t.id));
+  if (!next || next.id !== id) throw P.fail(400, "Finish the quests in order.");
   if (!P.publicConfig().ready) throw P.fail(503, "Quests open soon.");
   if (task.kind === "chain") {
     let ok = false;
