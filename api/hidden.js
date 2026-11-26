@@ -51,7 +51,7 @@ async function owner() {
   } catch { return ""; }
 }
 
-const FRESH_MS = 60000, RETRY_MS = 10 * 60000;
+const FRESH_MS = 5 * 60000, RETRY_MS = 30 * 60000;
 
 // Works out the hidden list. Funders never change, so each creator is looked up once and remembered;
 // a failed lookup is remembered as "?<time>" and retried after RETRY_MS (it counts as "not a bot" meanwhile).
@@ -83,10 +83,11 @@ async function compute() {
   };
 }
 
+let memResult = null; // this instance's copy, so most requests don't touch Redis at all
 module.exports = P.handler(async (req, res) => {
-  // Serve the last result right away; recompute at most once a minute.
-  let result = null;
-  try { result = JSON.parse((await P.redis(["GET", "hiddenResult"])) || "null"); } catch {}
+  // Serve the last result right away; recompute at most every 5 minutes.
+  let result = memResult && Date.now() - memResult.at < FRESH_MS && !memResult.unchecked ? memResult : null;
+  if (!result) { try { result = JSON.parse((await P.redis(["GET", "hiddenResult"])) || "null"); } catch {} }
   if (!result || Date.now() - result.at > FRESH_MS || result.unchecked > 0) {
     try {
       result = await compute();
@@ -95,8 +96,9 @@ module.exports = P.handler(async (req, res) => {
       if (!result) throw P.fail(502, "Indexer unavailable, try again shortly.");
     }
   }
+  memResult = result;
   res.statusCode = 200;
   res.setHeader("content-type", "application/json");
-  res.setHeader("cache-control", "public, s-maxage=30, stale-while-revalidate=120");
+  res.setHeader("cache-control", "public, s-maxage=60, stale-while-revalidate=300");
   res.end(JSON.stringify(result));
 });

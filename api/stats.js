@@ -74,19 +74,23 @@ async function compute() {
   };
 }
 
+// Kept in this instance's memory; Redis only holds a backup (written every 5 minutes) for when the
+// indexer is down on a cold start. Keeps database commands low.
+let memResult = null, savedAt = 0;
 module.exports = P.handler(async (req, res) => {
-  let result = null;
-  try { result = JSON.parse((await P.redis(["GET", "statsResult"])) || "null"); } catch {}
+  let result = memResult;
   if (!result || Date.now() - result.at > FRESH_MS) {
     try {
       result = await compute();
-      try { await P.redis(["SET", "statsResult", JSON.stringify(result), "EX", "86400"]); } catch {}
+      if (Date.now() - savedAt > 5 * 60000) { savedAt = Date.now(); P.redis(["SET", "statsResult", JSON.stringify(result), "EX", "86400"]).catch(() => {}); }
     } catch (e) {
+      if (!result) { try { result = JSON.parse((await P.redis(["GET", "statsResult"])) || "null"); } catch {} }
       if (!result) throw P.fail(502, "Activity is unavailable right now.");
     }
   }
+  memResult = result;
   res.statusCode = 200;
   res.setHeader("content-type", "application/json");
-  res.setHeader("cache-control", "public, s-maxage=15, stale-while-revalidate=60");
+  res.setHeader("cache-control", "public, s-maxage=20, stale-while-revalidate=60");
   res.end(JSON.stringify(result));
 });

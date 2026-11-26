@@ -70,7 +70,7 @@ module.exports = P.handler(async (req, res) => {
   // 1) Our own index (kept up to date here, a few seconds at a time).
   try {
     await IX.sync(3500).catch(() => {});
-    if (await IX.current()) return reply(res, 200, { ...(await IX.read(token)), at: Date.now(), src: "index" }, "public, s-maxage=4, stale-while-revalidate=10");
+    if (await IX.current()) return reply(res, 200, { ...(await IX.read(token)), at: Date.now(), src: "index" }, "public, s-maxage=10, stale-while-revalidate=30");
   } catch { /* fall through to Blockscout */ }
   // 2) Blockscout directly.
   try {
