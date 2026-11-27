@@ -7,6 +7,7 @@
 //   NFT_FEE_RECIPIENT  receives launch, mint and trading fees    default: NFT_OWNER
 //   NFT_LAUNCH_FEE     launch fee in ETH                         default: 0.0015 (about $3)
 //   NFT_CONFIG_OUT     where to write the page config            default: frontend/nft-config.js
+//   NFT_COLLECTION_IMPL, NFT_COIN_IMPL  reuse implementations that are already deployed (only a new factory is deployed)
 const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
@@ -48,8 +49,13 @@ async function main() {
     return c;
   };
   const startBlock = await ethers.provider.getBlockNumber();
-  const collectionImpl = await deploy("NullNFTCollection");
-  const coinImpl = await deploy("NullNFTCoin");
+  const reuse = async (name, addr) => {
+    if ((await ethers.provider.getCode(addr)) === "0x") throw new Error(`${name} has no code at ${addr}`);
+    console.log(`${name.padEnd(18)} ${addr} (reused)`);
+    return ethers.getContractAt(name, addr);
+  };
+  const collectionImpl = process.env.NFT_COLLECTION_IMPL ? await reuse("NullNFTCollection", process.env.NFT_COLLECTION_IMPL) : await deploy("NullNFTCollection");
+  const coinImpl = process.env.NFT_COIN_IMPL ? await reuse("NullNFTCoin", process.env.NFT_COIN_IMPL) : await deploy("NullNFTCoin");
   const factory = await deploy("NullNFTFactory", [v4.poolManager, await collectionImpl.getAddress(), await coinImpl.getAddress(), owner, feeRecipient, launchFee]);
 
   const out = {
