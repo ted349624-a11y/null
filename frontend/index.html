@@ -25,7 +25,7 @@
   .tbar { background:#1c2410; color:var(--acc); text-align:center; padding:8px 14px; font-size:13px; border-bottom:1px solid var(--line); }
   .tbar a { color:var(--txt); text-decoration:underline; text-underline-offset:2px; }
   footer { max-width:1120px; margin:0 auto 40px; padding:16px 20px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between; color:var(--mut); font-size:13px; }
-  footer .links { display:flex; gap:18px; }
+  footer .links { display:flex; flex-wrap:wrap; gap:8px 18px; }
   button, .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; background:var(--acc); color:var(--accTxt); border:0; border-radius:10px; padding:11px 18px; font-family:inherit; font-size:14px; font-weight:700; line-height:1.2; cursor:pointer; text-decoration:none !important; white-space:nowrap; }
   button:disabled { opacity:.45; cursor:not-allowed; }
   .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); font-weight:600; }
@@ -127,7 +127,7 @@
 <div class="tbar">Testnet: runs on Base Sepolia with free test ETH. Get some: <a href="https://portal.cdp.coinbase.com/products/faucet" target="_blank" rel="noopener">Coinbase</a> · <a href="https://thirdweb.com/base-sepolia-testnet" target="_blank" rel="noopener">thirdweb</a> · <a href="https://tokentool.bitbond.com/faucet/base-sepolia" target="_blank" rel="noopener">Bitbond</a></div>
 <main id="view"></main>
 <footer>
-  <div class="links"><a href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a href="/apply">Apply</a></div>
+  <div class="links"><a href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a href="/apply">Apply</a><a id="fCa" href="https://sepolia.basescan.org/address/0x548CAaAC510dEfaBa30D2A0AeFee59846a70376E#code" target="_blank" rel="noopener">Launchpad contract ✓ verified</a></div>
   <div>null<span style="color:var(--acc)">_</span> · NFTs with their own coin</div>
 </footer>
 <div id="toast"></div>
@@ -146,6 +146,7 @@ const toast = (m, ms = 3200) => { const t = $("toast"); t.textContent = m; t.cla
 
 if (!CFG || !CFG.factory) { $("view").innerHTML = '<div class="card empty">NFT launches are coming soon.</div>'; return; }
 $("net").textContent = CFG.chainName;
+if (CFG.explorer) $("fCa").href = `${CFG.explorer}/address/${CFG.factory}#code`; // follows the deployed factory
 
 // ---------------------------------------------------------------- contracts
 const INFO_T = "tuple(address collection,address coin,address creator,string name,string symbol,uint256 nftSupply,uint256 perNFT,uint256 mintPrice,uint256 mintEnd,uint256 maxPerWallet,uint256 minted,uint256 publicCap,uint256 totalNFTs,uint256 vaultSize,bool finalized,uint256 mintFeeBps,uint256 lpBps,bytes32 seed)";
