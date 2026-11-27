@@ -183,8 +183,11 @@ const COIN_ABI = ["function balanceOf(address) view returns (uint256)", "functio
 const PERMIT2_ABI = ["function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)", "function approve(address token, address spender, uint160 amount, uint48 expiration)"];
 const ROUTER_ABI = ["function execute(bytes commands, bytes[] inputs, uint256 deadline) payable"];
 const KEY_T = "tuple(address,address,uint24,int24,address)";
-const QUOTER_ABI = [`function quoteExactInputSingle(tuple(${KEY_T} poolKey, bool zeroForOne, uint128 exactAmount, bytes hookData) params) returns (uint256 amountOut, uint256 gasEstimate)`];
-const STATEVIEW_ABI = ["function getSlot0(bytes32) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)"];
+const QUOTER_ABI = [
+  `function quoteExactInputSingle(tuple(${KEY_T} poolKey, bool zeroForOne, uint128 exactAmount, bytes hookData) params) returns (uint256 amountOut, uint256 gasEstimate)`,
+  `function quoteExactOutputSingle(tuple(${KEY_T} poolKey, bool zeroForOne, uint128 exactAmount, bytes hookData) params) returns (uint256 amountIn, uint256 gasEstimate)`,
+];
+const STATEVIEW_ABI = ["function getSlot0(bytes32) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)", "function getLiquidity(bytes32) view returns (uint128)"];
 
 const rp = new ethers.JsonRpcProvider(CFG.rpcUrl, CFG.chainId, { staticNetwork: true, batchMaxCount: 1 });
 const factoryR = new ethers.Contract(CFG.factory, FACTORY_ABI, rp);
@@ -209,7 +212,12 @@ function timeLeft(sec) {
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : m ? `${m}m ${s}s` : `${s}s`;
 }
-const now = () => Math.floor(Date.now() / 1000);
+// Mint timers follow the chain's clock, not the device's (a phone clock can be off by minutes or hours).
+let clockOffset = 0;
+const now = () => Math.floor(Date.now() / 1000 + clockOffset);
+async function syncClock() {
+  try { const b = await rp.getBlock("latest"); if (b) clockOffset = b.timestamp - Date.now() / 1000; } catch {}
+}
 function errMsg(e) {
   const name = e?.revert?.name || (String(e?.shortMessage || e?.message || "").match(/custom error '(\w+)/) || [])[1];
   const map = {
@@ -398,7 +406,7 @@ async function viewList() {
     </div>
     <div id="grid"><div class="card empty">Loading…</div></div>`;
   document.querySelectorAll("#tabs button").forEach((b) => { b.classList.toggle("on", b.dataset.t === TAB); b.onclick = () => { TAB = b.dataset.t; viewList(); }; });
-  try { LIST = await factoryR.latest(0, 60); } catch (e) { $("grid").innerHTML = `<div class="card empty">Couldn't load collections. ${esc(errMsg(e))}</div>`; return; }
+  try { [LIST] = await Promise.all([factoryR.latest(0, 60), syncClock()]); } catch (e) { $("grid").innerHTML = `<div class="card empty">Couldn't load collections. ${esc(errMsg(e))}</div>`; return; }
   renderGrid();
   timer = setInterval(() => factoryR.latest(0, 60).then((l) => { LIST = l; renderGrid(); }).catch(() => {}), 20000);
 }
@@ -541,10 +549,10 @@ async function doLaunch() {
 }
 
 // ---------------------------------------------------------------- collection
-const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { eth: 0n, coin: 0n }, price: null, pending: null, nftSell: null };
+const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { eth: 0n, coin: 0n }, price: null, pending: null, nftSell: null, poolCoins: null, buyN: 1 };
 async function viewCollection(addr) {
   addr = ethers.getAddress(addr);
-  if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null, nftSell: null });
+  if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null, nftSell: null, poolCoins: null, buyN: 1 });
   $("view").innerHTML = `<a class="back" href="#">← All collections</a><div id="colBody"><div class="card empty">Loading…</div></div>`;
   await refresh();
   timer = setInterval(() => refresh(true), 15000);
@@ -552,7 +560,7 @@ async function viewCollection(addr) {
 async function refresh(quiet) {
   const col = new ethers.Contract(S.addr, COLLECTION_ABI, rp);
   try {
-    S.info = await col.info();
+    [S.info] = await Promise.all([col.info(), syncClock()]);
   } catch (e) { if (!quiet) $("colBody").innerHTML = `<div class="card empty">Couldn't load this collection. ${esc(errMsg(e))}</div>`; return; }
   const c = S.info;
   const tasks = [];
@@ -563,7 +571,8 @@ async function refresh(quiet) {
     tasks.push(loadMine(col));
   }
   if (c.finalized && c.minted > 0n) {
-    tasks.push(new ethers.Contract(CFG.v4.stateView, STATEVIEW_ABI, rp).getSlot0(poolIdOf(c.coin)).then(([sp]) => { S.price = sp; }).catch(() => {}));
+    const sv = new ethers.Contract(CFG.v4.stateView, STATEVIEW_ABI, rp), pid = poolIdOf(c.coin);
+    tasks.push(Promise.all([sv.getSlot0(pid), sv.getLiquidity(pid)]).then(([[sp], L]) => { S.price = sp; S.poolCoins = sp > 0n ? (L * sp) >> 96n : 0n; }).catch(() => {}));
     tasks.push(factoryR.collectFees.staticCall(S.addr).then(([e, k]) => (S.pending = { eth: e, coins: k })).catch(() => (S.pending = null)));
     tasks.push(new ethers.Contract(CFG.v4.quoter, QUOTER_ABI, rp).quoteExactInputSingle.staticCall([keyOf(c.coin), false, c.perNFT, "0x"]).then(([out]) => (S.nftSell = out)).catch(() => (S.nftSell = null)));
   }
@@ -617,7 +626,7 @@ function render() {
         </div>
         ${st === "mint" ? mintPanel() : ""}
         ${st === "closing" ? closePanel() : ""}
-        ${st === "trade" ? tradePanel() + convertPanel() + feesPanel() : ""}
+        ${st === "trade" ? buyPanel() + tradePanel() + convertPanel() + feesPanel() : ""}
         ${st === "ended" ? '<div class="card mut">This mint ended with no NFTs sold.</div>' : ""}
       </section>
     </div>`;
@@ -645,6 +654,77 @@ function closePanel() {
   return `<div class="card"><h2>The mint is closed</h2><div class="mut small">Open trading to put the pool on Uniswap and pay out the mint. Anyone can do it; it costs only gas.</div>
     <button class="wide" id="finBtn" style="margin-top:12px">Open trading</button><div class="err" id="finErr"></div></div>`;
 }
+// How many NFTs can be bought right now: limited by the vault and by the coins in the pool
+// (buying a pool's last coins costs ever more, so keep a 5% margin). Coins the buyer already holds count too.
+function buyMax() {
+  const c = S.info, per = c.perNFT;
+  if (per === 0n) return 0;
+  const fromPool = S.poolCoins === null ? 0n : (S.poolCoins * 95n) / 100n;
+  const byCoins = Number((fromPool + (account ? S.bal.coin : 0n)) / per);
+  return Math.max(0, Math.min(20, Number(c.vaultSize), byCoins));
+}
+function buyPanel() {
+  const c = S.info, max = buyMax();
+  if (S.buyN > max) S.buyN = Math.max(1, max);
+  const why = Number(c.vaultSize) === 0 ? "The vault is empty right now: every NFT is held by someone."
+    : max === 0 ? `The pool doesn't hold one NFT's worth of ${esc(c.symbol)} right now (${fmtUnits(S.poolCoins || 0n)} of ${fmtUnits(c.perNFT)} needed).` : "";
+  return `<div class="card">
+    <div class="row between"><h2>Buy NFTs</h2><span class="mut tiny">${c.vaultSize} in the vault</span></div>
+    <div class="mut small">Pick how many. You pay what their coins cost in the pool, and get random NFTs from the vault.</div>
+    ${why ? `<div class="small" style="margin-top:12px">${why}</div>` : `
+    <div class="qty" style="margin-top:14px"><button class="ghost" id="bMinus">−</button><input id="bQty" value="${S.buyN}" inputmode="numeric"><button class="ghost" id="bPlus">+</button></div>
+    <div class="tiny mut" style="margin-top:6px">Up to ${plural(max, "NFT")} right now.</div>
+    <div class="quote" id="bQuote"></div>
+    <button class="wide" id="bBtn" style="margin-top:10px">Buy</button>
+    <div class="tiny mut" style="margin-top:8px">Two confirmations: buy the coins, then turn them into NFTs. Each extra NFT costs a bit more, like any pool.</div>
+    <div id="bGot"></div>`}
+    <div class="err" id="bErr"></div>
+  </div>`;
+}
+let buyQuoteN = 0, buyQuoteEth = null;
+async function buyQuote() {
+  const c = S.info, n = S.buyN, el = $("bQuote"); if (!el) return;
+  buyQuoteEth = null; $("bBtn").disabled = true;
+  const need = c.perNFT * BigInt(n) - (account ? S.bal.coin : 0n);
+  if (need <= 0n) { buyQuoteEth = 0n; buyQuoteN = n; el.innerHTML = `You already hold enough ${esc(c.symbol)}: no ETH needed.`; $("bBtn").textContent = `Get ${plural(n, "NFT")}`; $("bBtn").disabled = false; return; }
+  el.textContent = "Working out the price…";
+  try {
+    const [eth] = await new ethers.Contract(CFG.v4.quoter, QUOTER_ABI, rp).quoteExactOutputSingle.staticCall([keyOf(c.coin), true, need, "0x"]);
+    if (S.buyN !== n) return;
+    buyQuoteEth = eth; buyQuoteN = n;
+    el.innerHTML = `Total <b class="mono">${fmtEth(eth, 8)}</b>${n > 1 ? ` · about ${fmtEth(eth / BigInt(n), 8)} each` : ""}${account && S.bal.coin > 0n ? ` <span class="tiny">(your ${fmtUnits(S.bal.coin)} ${esc(c.symbol)} count too)</span>` : ""}`;
+    $("bBtn").textContent = `Buy ${plural(n, "NFT")} for ${fmtEth(eth, 6)}`;
+    $("bBtn").disabled = false;
+  } catch (e) { el.textContent = "Couldn't price this: " + errMsg(e); }
+}
+async function buyNfts() {
+  const c = S.info, n = S.buyN, btn = $("bBtn");
+  $("bErr").textContent = "";
+  try {
+    const s = await need();
+    btn.disabled = true;
+    const col = new ethers.Contract(S.addr, COLLECTION_ABI, s);
+    const coinBal = await new ethers.Contract(c.coin, COIN_ABI, rp).balanceOf(account);
+    const coinsNeeded = c.perNFT * BigInt(n) - coinBal;
+    if (coinsNeeded > 0n) {
+      const [eth] = await new ethers.Contract(CFG.v4.quoter, QUOTER_ABI, rp).quoteExactOutputSingle.staticCall([keyOf(c.coin), true, coinsNeeded, "0x"]);
+      const maxIn = (eth * 103n) / 100n; // 3% room for price movement; the unused ETH comes straight back
+      const params = coder.encode([`tuple(${KEY_T},bool,uint128,uint128,bytes)`], [[keyOf(c.coin), true, coinsNeeded, maxIn, "0x"]]);
+      const swap = coder.encode(["bytes", "bytes[]"], ["0x080c0f", [params, coder.encode(["address", "uint256"], [ethers.ZeroAddress, maxIn]), coder.encode(["address", "uint256"], [c.coin, coinsNeeded])]]);
+      const sweep = coder.encode(["address", "address", "uint160"], [ethers.ZeroAddress, account, 0]); // send unused ETH back
+      const router = new ethers.Contract(CFG.v4.universalRouter, ROUTER_ABI, s);
+      await send(`Buying the coins (1/2)`, () => call(router, "execute", ["0x1004", [swap, sweep], now() + 900], { value: maxIn }));
+    }
+    let rc;
+    try { rc = await send(`Turning coins into ${plural(n, "NFT")} (2/2)`, () => call(col, "toNFTs", [n])); }
+    catch (e) { await refresh(); throw new Error(`You have the coins now, but turning them into NFTs failed: ${errMsg(e)} You can try again under "NFT ⇄ coins".`); }
+    const ev = rc.logs.map((l) => { try { return col.interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "ToNFTs");
+    await refresh();
+    if (ev && $("bGot")) $("bGot").innerHTML = `<div class="small ok" style="margin-top:10px">You got:</div><div class="got">${ev.args.ids.map((id) => `<img alt="#${id}" title="#${id}" src="${artUrl(c.seed, Number(id), c.symbol)}">`).join("")}</div>`;
+  } catch (e) { if ($("bErr")) $("bErr").textContent = errMsg(e); }
+  finally { if ($("bBtn")) $("bBtn").disabled = false; }
+}
+
 function tradePanel() {
   const c = S.info;
   return `<div class="card">
@@ -715,6 +795,19 @@ function wire() {
     try { await need(); $("finBtn").disabled = true; await send("Open trading", () => call(col(), "finalize")); await refresh(); }
     catch (e) { $("finErr").textContent = errMsg(e); $("finBtn").disabled = false; }
   };
+  // buy NFTs
+  if ($("bBtn")) {
+    const upd = () => {
+      const max = buyMax(); let n = Math.floor(Number($("bQty").value) || 0);
+      if (n > max) n = max; if (n < 1) n = 1; $("bQty").value = n;
+      if (n !== S.buyN || buyQuoteN !== n || buyQuoteEth === null) { S.buyN = n; clearTimeout(upd.t); upd.t = setTimeout(buyQuote, 200); }
+    };
+    $("bMinus").onclick = () => { $("bQty").value = Number($("bQty").value) - 1; upd(); };
+    $("bPlus").onclick = () => { $("bQty").value = Number($("bQty").value) + 1; upd(); };
+    $("bQty").oninput = upd;
+    buyQuoteN = 0; buyQuote();
+    $("bBtn").onclick = buyNfts;
+  }
   // trade
   if ($("tradeBtn")) {
     $("sBuy").onclick = () => { S.side = "buy"; render(); };
