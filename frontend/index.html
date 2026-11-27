@@ -22,6 +22,16 @@
   nav a.on { color:var(--txt); background:#171a1e; } nav a:hover { color:var(--txt); text-decoration:none; }
   .sp { flex:1; }
   .net { font-size:12px; color:var(--mut); border:1px solid var(--line); border-radius:20px; padding:4px 10px; white-space:nowrap; }
+  .wallet { position:relative; }
+  .wmenu { display:none; position:absolute; right:0; top:calc(100% + 8px); min-width:250px; background:var(--card); border:1px solid var(--line2); border-radius:12px; padding:6px; box-shadow:0 14px 40px rgba(0,0,0,.5); z-index:20; }
+  .wmenu.open { display:block; }
+  .wmenu .who { padding:8px 10px 10px; border-bottom:1px solid var(--line); margin-bottom:4px; }
+  .wmenu .who .a { font:600 12px ui-monospace, Menlo, monospace; overflow-wrap:anywhere; }
+  .wmenu .who .b { font-size:13px; margin-top:4px; }
+  .wmenu button { display:block; width:100%; text-align:left; background:transparent; color:var(--txt); border:0; border-radius:8px; padding:9px 10px; font-weight:600; font-size:14px; }
+  .wmenu button:hover { background:#1a1d21; }
+  .wmenu button.danger { color:var(--red); }
+  #connect.bad { background:transparent; color:var(--red); border:1px solid var(--red); }
   .tbar { background:#1c2410; color:var(--acc); text-align:center; padding:8px 14px; font-size:13px; border-bottom:1px solid var(--line); }
   .tbar a { color:var(--txt); text-decoration:underline; text-underline-offset:2px; }
   footer { max-width:1120px; margin:0 auto 40px; padding:16px 20px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between; color:var(--mut); font-size:13px; }
@@ -122,7 +132,11 @@
   <div class="sp"></div>
   <span class="net" id="net"></span>
   <a class="btn ghost sm" href="#launch">+ Launch</a>
-  <button class="sm" id="connect">Connect wallet</button>
+  <div class="wallet"><button class="sm" id="connect">Connect wallet</button>
+    <div class="wmenu" id="wmenu">
+      <div class="who"><div class="a" id="wAddr"></div><div class="b mut" id="wBal"></div></div>
+      <button id="wCopy">Copy address</button><button id="wExplorer">View on explorer</button><button id="wDisconnect" class="danger">Disconnect</button>
+    </div></div>
 </header>
 <div class="tbar">Testnet: runs on Base Sepolia with free test ETH. Get some: <a href="https://portal.cdp.coinbase.com/products/faucet" target="_blank" rel="noopener">Coinbase</a> · <a href="https://thirdweb.com/base-sepolia-testnet" target="_blank" rel="noopener">thirdweb</a> · <a href="https://tokentool.bitbond.com/faucet/base-sepolia" target="_blank" rel="noopener">Bitbond</a></div>
 <main id="view"></main>
@@ -208,7 +222,8 @@ function errMsg(e) {
   };
   if (map[name]) return map[name];
   if (e?.code === "ACTION_REJECTED" || e?.info?.error?.code === 4001) return "Rejected in wallet.";
-  if (/insufficient funds/i.test(e?.message || "")) return "Not enough ETH for this (and gas).";
+  if (e?.code === "INSUFFICIENT_FUNDS" || /insufficient funds/i.test(e?.message || "")) return `Not enough ${NET} for this (and gas). Get free test ETH from the links at the top.`;
+  if (/missing revert data/i.test(e?.shortMessage || e?.message || "")) return `The wallet could not send this. Make sure it is on ${CFG.chainName} and has some test ETH.`;
   return e?.shortMessage || e?.reason || e?.message || String(e);
 }
 
@@ -235,43 +250,121 @@ function artUrl(seed, id, symbol) {
 }
 
 // ---------------------------------------------------------------- wallet
-let signer = null, account = null;
+let signer = null, account = null, wrongNet = false, ethBal = null;
+const DISC_KEY = "null_nft_disconnected";
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+const NET = `${CFG.chainName} test ETH`;
+const walletChain = async () => parseInt(await window.ethereum.request({ method: "eth_chainId" }), 16);
+
+// The wallet must really be on our chain before anything is signed: some wallets ignore a switch request
+// silently, and a transaction would then go to whatever network they are on.
+async function ensureChain() {
+  if ((await walletChain()) === CFG.chainId) { wrongNet = false; return; }
+  const hex = "0x" + CFG.chainId.toString(16);
+  try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] }); }
+  catch (e) {
+    if (e.code === 4902 || e?.data?.originalError?.code === 4902 || /unrecognized chain|not added|unknown chain/i.test(e.message || "")) {
+      await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: hex, chainName: CFG.chainName, rpcUrls: [CFG.rpcUrl], nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, blockExplorerUrls: [CFG.explorer] }] });
+    } else if (e.code !== 4001) { /* fall through to the check below */ } else throw e;
+  }
+  if ((await walletChain()) !== CFG.chainId) {
+    wrongNet = true; walletUI();
+    throw new Error(`Your wallet is on another network. Switch it to ${CFG.chainName} (chain ${CFG.chainId}) and try again.`);
+  }
+  wrongNet = false;
+}
 async function connect() {
   if (!window.ethereum) {
     location.href = "https://metamask.app.link/dapp/" + location.host + location.pathname + location.hash;
     return;
   }
   const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
-  const hex = "0x" + CFG.chainId.toString(16);
-  try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] }); }
-  catch (e) {
-    if (e.code === 4902 || /Unrecognized chain/i.test(e.message || "")) {
-      await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: hex, chainName: CFG.chainName, rpcUrls: [CFG.rpcUrl], nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, blockExplorerUrls: [CFG.explorer] }] });
-    } else throw e;
-  }
+  if (!accs || !accs.length) throw new Error("No account selected in the wallet.");
+  store.set(DISC_KEY, null);
+  account = accs[0].toLowerCase();
+  walletUI();
+  await ensureChain();
   signer = await new ethers.BrowserProvider(window.ethereum).getSigner();
   account = (await signer.getAddress()).toLowerCase();
-  $("connect").textContent = short(account);
-  $("connect").classList.add("ghost");
+  refreshBal();
+  walletUI();
 }
-async function need() { if (!signer) await connect(); if (!signer) throw new Error("Connect your wallet first."); return signer; }
-$("connect").onclick = () => connect().then(route).catch((e) => toast(errMsg(e)));
-window.ethereum?.on?.("accountsChanged", () => { signer = null; account = null; connect().then(route).catch(() => {}); });
+async function refreshBal() {
+  if (!account) return;
+  try { ethBal = await rp.getBalance(account); } catch {}
+  walletUI();
+}
+function walletUI() {
+  const b = $("connect");
+  b.classList.remove("ghost", "bad");
+  if (!account) { b.textContent = "Connect wallet"; $("wmenu").classList.remove("open"); return; }
+  if (wrongNet) { b.textContent = "Wrong network"; b.classList.add("bad"); }
+  else { b.textContent = short(account); b.classList.add("ghost"); }
+  $("wAddr").textContent = account;
+  feeLine();
+  $("wBal").textContent = wrongNet ? `Switch to ${CFG.chainName}` : ethBal === null ? "" : `${fmtEth(ethBal)} on ${CFG.chainName}`;
+}
+function disconnect() {
+  signer = null; account = null; wrongNet = false; ethBal = null;
+  store.set(DISC_KEY, "1");
+  // MetaMask and some others support revoking the site's access; elsewhere this just forgets the wallet here
+  window.ethereum?.request?.({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] }).catch(() => {});
+  walletUI();
+  route();
+  toast("Wallet disconnected");
+}
+async function need() {
+  if (!signer) await connect(); else await ensureChain();
+  if (!signer) throw new Error("Connect your wallet first.");
+  return signer;
+}
+$("connect").onclick = (e) => {
+  e.stopPropagation();
+  if (account && !wrongNet) { $("wmenu").classList.toggle("open"); refreshBal(); return; }
+  connect().then(route).catch((err) => toast(errMsg(err), 6000));
+};
+document.addEventListener("click", (e) => { if (!e.target.closest(".wallet")) $("wmenu").classList.remove("open"); });
+$("wCopy").onclick = async () => { try { await navigator.clipboard.writeText(account); toast("Address copied"); } catch { toast(account, 6000); } $("wmenu").classList.remove("open"); };
+$("wExplorer").onclick = () => { window.open(`${CFG.explorer}/address/${account}`, "_blank", "noopener"); $("wmenu").classList.remove("open"); };
+$("wDisconnect").onclick = () => { $("wmenu").classList.remove("open"); disconnect(); };
+window.ethereum?.on?.("accountsChanged", (accs) => {
+  if (store.get(DISC_KEY) === "1") return;
+  signer = null; account = null;
+  if (accs && accs.length) connect().then(route).catch(() => {}); else { walletUI(); route(); }
+});
 window.ethereum?.on?.("chainChanged", () => location.reload());
-// reconnect silently if the site is already allowed
-window.ethereum?.request?.({ method: "eth_accounts" }).then((a) => { if (a && a.length) connect().then(route).catch(() => {}); }).catch(() => {});
+// reconnect silently if the site is already allowed (and the user did not disconnect here)
+if (store.get(DISC_KEY) !== "1") window.ethereum?.request?.({ method: "eth_accounts" }).then((a) => { if (a && a.length) connect().then(route).catch(() => { walletUI(); }); }).catch(() => {});
 
 // Gas use varies a little between the estimate and the real block (coins -> NFT picks a random vault slot),
 // so every transaction gets 25% (+20k) of headroom over the estimate.
+function lowFunds(bal, needed) {
+  return new Error(`Not enough ${NET}: you have ${fmtEth(bal)}, this needs about ${fmtEth(needed)} with gas. Get free test ETH from the links at the top of the page.`);
+}
 async function call(contract, method, args = [], overrides = {}) {
-  const est = await contract[method].estimateGas(...args, overrides);
-  return contract[method](...args, { ...overrides, gasLimit: (est * 125n) / 100n + 20000n });
+  await ensureChain();
+  const to = await contract.getAddress(), data = contract.interface.encodeFunctionData(method, args), value = overrides.value || 0n;
+  const bal = await rp.getBalance(account);
+  let est;
+  try { est = await rp.estimateGas({ from: account, to, data, value }); }
+  catch (e) {
+    const d = e?.data || e?.info?.error?.data;
+    if (typeof d === "string" && d.length >= 10) { let pe = null; try { pe = contract.interface.parseError(d); } catch {} if (pe) throw Object.assign(new Error(pe.name), { revert: { name: pe.name } }); }
+    if (bal < value + 10n ** 13n) throw lowFunds(bal, value + 10n ** 13n);
+    throw e;
+  }
+  const gasLimit = (est * 125n) / 100n + 20000n;
+  const fee = await rp.getFeeData().catch(() => ({}));
+  const needed = value + gasLimit * (fee.maxFeePerGas || fee.gasPrice || 0n);
+  if (bal < needed) throw lowFunds(bal, needed);
+  return contract[method](...args, { ...overrides, gasLimit });
 }
 async function send(label, fn) {
   const t = await fn();
   toast(`${label}: waiting for confirmation…`, 60000);
   const rc = await t.wait();
   toast(`${label}: done ✓`);
+  refreshBal();
   return rc;
 }
 
@@ -361,12 +454,22 @@ async function viewLaunch() {
   const seed = ethers.hexlify(ethers.randomBytes(32));
   try { if (!SETTINGS) { const [launchFee, mintFeeBps, lpBps, creatorFeeBps] = await Promise.all([factoryR.launchFee(), factoryR.mintFeeBps(), factoryR.lpBps(), factoryR.creatorFeeBps()]); SETTINGS = { launchFee, mintFeeBps: Number(mintFeeBps), lpBps: Number(lpBps), creatorFeeBps: Number(creatorFeeBps) }; } }
   catch (e) { $("fErr").textContent = "Couldn't read the launch settings: " + errMsg(e); return; }
-  $("fFee").textContent = SETTINGS.launchFee > 0n ? `Launch fee: ${fmtEth(SETTINGS.launchFee)}` : "No launch fee.";
+  feeLine();
   const ids = ["fName", "fSym", "fNft", "fCoin", "fPrice", "fDur", "fMax"];
   ids.forEach((id) => ($(id).oninput = () => preview(seed)));
   $("fSym").addEventListener("input", () => { const p = $("fSym").selectionStart; $("fSym").value = $("fSym").value.toUpperCase(); $("fSym").setSelectionRange(p, p); });
   $("fGo").onclick = () => doLaunch();
   preview(seed);
+}
+function feeLine() {
+  const el = $("fFee"); if (!el || !SETTINGS) return;
+  let t = SETTINGS.launchFee > 0n ? `Launch fee: ${fmtEth(SETTINGS.launchFee)}` : "No launch fee.";
+  if (account && ethBal !== null) {
+    t += ` · You have ${fmtEth(ethBal)} on ${CFG.chainName}`;
+    if (ethBal < SETTINGS.launchFee + 10n ** 13n) t += ". Get free test ETH from the links at the top.";
+  }
+  el.textContent = t;
+  el.style.color = account && ethBal !== null && ethBal < SETTINGS.launchFee + 10n ** 13n ? "var(--red)" : "";
 }
 const TEXT_OK = /^[\x20-\x7e]+$/;
 function readForm() {
@@ -547,7 +650,7 @@ function tradePanel() {
     <div class="seg" style="margin-top:10px"><button id="sBuy" class="${S.side === "buy" ? "on" : ""}">Buy</button><button id="sSell" class="${S.side === "sell" ? "on" : ""}">Sell</button></div>
     <label for="amt">${S.side === "buy" ? "You pay (ETH)" : `You sell (${esc(c.symbol)})`}</label>
     <input id="amt" inputmode="decimal" placeholder="0.0">
-    <div class="row between tiny mut" style="margin-top:6px"><span>Balance: ${S.side === "buy" ? fmtEth(S.bal.eth) : `${fmtUnits(S.bal.coin)} ${esc(c.symbol)}`}</span>${S.side === "sell" && S.bal.coin > 0n ? '<button class="link" id="amtMax">Max</button>' : ""}</div>
+    <div class="row between tiny mut" style="margin-top:6px"><span>Balance: ${S.side === "buy" ? `${fmtEth(S.bal.eth)} (${esc(CFG.chainName)})` : `${fmtUnits(S.bal.coin)} ${esc(c.symbol)}`}</span>${S.side === "sell" && S.bal.coin > 0n ? '<button class="link" id="amtMax">Max</button>' : ""}</div>
     <div class="quote" id="quote"></div>
     <button class="wide" id="tradeBtn" style="margin-top:10px">${S.side === "buy" ? "Buy" : "Sell"}</button>
     <div class="tiny mut" style="margin-top:8px">Up to 3% price movement allowed. Coins also trade anywhere Uniswap v4 is supported.</div>
@@ -686,7 +789,7 @@ async function trade() {
   try {
     const s = await need();
     btn.disabled = true;
-    if (buy ? amt > S.bal.eth : amt > S.bal.coin) throw new Error(buy ? "Not enough ETH." : `Not enough ${c.symbol}.`);
+    if (buy ? amt > S.bal.eth : amt > S.bal.coin) throw new Error(buy ? `Not enough ${NET}: you have ${fmtEth(S.bal.eth)}. Get free test ETH from the links at the top.` : `Not enough ${c.symbol}.`);
     const out = await getQuote(buy, amt);
     const minOut = (out * 97n) / 100n;
     if (!buy) {
