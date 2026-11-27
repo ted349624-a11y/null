@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>NFTs — null_</title>
+<title>null_ — NFTs with their own coin</title>
 <meta name="description" content="Launch an NFT collection with its own coin. Every NFT holds a fixed amount of coins: turn NFTs into coins and back any time." />
+<meta property="og:title" content="null_ — NFTs with their own coin" />
+<meta property="og:description" content="Launch an NFT collection with its own coin. Turn NFTs into coins and back any time." />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308090b'/%3E%3Crect x='8' y='22' width='16' height='4' fill='%23c6ff3d'/%3E%3C/svg%3E" />
 <style>
   :root { --bg:#08090b; --card:#111316; --card2:#0c0e10; --line:#1f2328; --line2:#2f353c; --txt:#eceff1; --mut:#7d8790; --acc:#c6ff3d; --accTxt:#0d1400; --red:#ff5d6c; --grn:#4ade80; }
@@ -20,6 +22,10 @@
   nav a.on { color:var(--txt); background:#171a1e; } nav a:hover { color:var(--txt); text-decoration:none; }
   .sp { flex:1; }
   .net { font-size:12px; color:var(--mut); border:1px solid var(--line); border-radius:20px; padding:4px 10px; white-space:nowrap; }
+  .tbar { background:#1c2410; color:var(--acc); text-align:center; padding:8px 14px; font-size:13px; border-bottom:1px solid var(--line); }
+  .tbar a { color:var(--txt); text-decoration:underline; text-underline-offset:2px; }
+  footer { max-width:1120px; margin:0 auto 40px; padding:16px 20px 0; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; gap:8px 20px; justify-content:space-between; color:var(--mut); font-size:13px; }
+  footer .links { display:flex; gap:18px; }
   button, .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; background:var(--acc); color:var(--accTxt); border:0; border-radius:10px; padding:11px 18px; font-family:inherit; font-size:14px; font-weight:700; line-height:1.2; cursor:pointer; text-decoration:none !important; white-space:nowrap; }
   button:disabled { opacity:.45; cursor:not-allowed; }
   .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); font-weight:600; }
@@ -112,13 +118,18 @@
 </head>
 <body>
 <header>
-  <a class="logo" href="/">null<b>_</b></a>
-  <nav><a href="/">Coins</a><a href="/nft" class="on">NFTs</a></nav>
+  <a class="logo" href="/#">null<b>_</b></a>
   <div class="sp"></div>
   <span class="net" id="net"></span>
+  <a class="btn ghost sm" href="#launch">+ Launch</a>
   <button class="sm" id="connect">Connect wallet</button>
 </header>
+<div class="tbar">Testnet: runs on Base Sepolia with free test ETH. Get some: <a href="https://portal.cdp.coinbase.com/products/faucet" target="_blank" rel="noopener">Coinbase</a> · <a href="https://thirdweb.com/base-sepolia-testnet" target="_blank" rel="noopener">thirdweb</a> · <a href="https://tokentool.bitbond.com/faucet/base-sepolia" target="_blank" rel="noopener">Bitbond</a></div>
 <main id="view"></main>
+<footer>
+  <div class="links"><a href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a href="/apply">Apply</a></div>
+  <div>null<span style="color:var(--acc)">_</span> · NFTs with their own coin</div>
+</footer>
 <div id="toast"></div>
 
 <script src="./ethers.umd.min.js"></script>
@@ -278,7 +289,7 @@ window.addEventListener("hashchange", route);
 // ---------------------------------------------------------------- list
 let LIST = null, TAB = "all";
 async function viewList() {
-  document.title = "NFTs — null_";
+  document.title = "null_ — NFTs with their own coin";
   $("view").innerHTML = `
     <section class="card hero">
       <div>

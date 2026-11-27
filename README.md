@@ -173,7 +173,11 @@ team's Google Form (`GFORM` and `ENTRY` at the top of the script in `frontend/ap
 on our side, and the answers are read in Google Forms / Sheets. If the form is replaced, take its
 "Get pre-filled link" and copy the form id and the two `entry.` numbers from it.
 
-## NFT ⇄ coin collections (`/nft`)
+## NFT ⇄ coin collections (the homepage)
+
+nullfamily.fun now serves only the NFT launchpad (`frontend/index.html`). The old coin launchpad (`app.html`) and the
+X quests page (`quests.html`) redirect to `/`, `testnet.nullfamily.fun` redirects to nullfamily.fun, and points are
+closed (`pointsOpen: false` in `lib/quest-config.js`; stored points stay; env `POINTS_OPEN=1` reopens). `/apply` stays.
 
 Anyone can launch an NFT collection with its own coin (`contracts/nft/`). The creator picks the NFT supply and
 the coin supply; every NFT holds `coinSupply / nftSupply` coins.

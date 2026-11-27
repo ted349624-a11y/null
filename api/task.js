@@ -2,6 +2,7 @@
 const P = require("../lib/points");
 module.exports = P.handler(async (req, res) => {
   if (req.method !== "POST") throw P.fail(405, "POST only");
+  P.pointsClosed();
   const a = P.readToken(req);
   if (!a) throw P.fail(401, "Sign in again");
   const { id, tx } = await P.body(req);

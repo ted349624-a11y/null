@@ -15,8 +15,22 @@ const rewrites = (JSON.parse(fs.readFileSync(path.join(__dirname, "../vercel.jso
   .filter((r) => !r.has && r.source !== "/")
   .map((r) => ({ re: new RegExp("^" + r.source.replace(/:[a-z]+/gi, "[^/]+") + "$"), dest: r.destination }));
 
+const redirects = (JSON.parse(fs.readFileSync(path.join(__dirname, "../vercel.json"), "utf8")).redirects || []).map((r) => ({
+  re: new RegExp("^" + r.source.replace("/:path*", "(?:/(.*))?").replace(/:[a-z]+/gi, "[^/]+") + "$"),
+  host: (r.has || []).find((h) => h.type === "host")?.value?.replace(/\.nullfamily\.fun$/, "."),
+  dest: r.destination,
+}));
+
 http.createServer(async (req, res) => {
   let url = new URL(req.url, "http://local");
+  const reqHost = String(req.headers.host || "");
+  const rd = redirects.find((r) => r.re.test(url.pathname) && (!r.host || reqHost.startsWith(r.host)));
+  if (rd) {
+    const rest = (rd.re.exec(url.pathname) || [])[1] || "";
+    const dest = rd.dest.replace(":path*", rest).replace("https://nullfamily.fun", "http://localhost:" + port);
+    res.writeHead(307, { location: dest });
+    return res.end();
+  }
   const rw = rewrites.find((r) => r.re.test(url.pathname));
   if (rw) {
     const d = new URL(rw.dest, "http://local");
@@ -32,9 +46,9 @@ http.createServer(async (req, res) => {
     return require(file)(req, res);
   }
   let p = url.pathname;
-  if (p === "/") p = host.startsWith("testnet.") ? "/app.html" : "/quests.html";
+  if (p === "/") p = "/index.html";
   const file = path.join(root, path.normalize(p).replace(/^(\.\.[/\\])+/, ""));
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.statusCode = 404; return res.end("not found"); }
   res.setHeader("content-type", types[path.extname(file)] || "application/octet-stream");
   fs.createReadStream(file).pipe(res);
-}).listen(port, () => console.log(`dev server on http://localhost:${port} (testnet app: http://testnet.localhost:${port})`));
+}).listen(port, () => console.log(`dev server on http://localhost:${port}`));

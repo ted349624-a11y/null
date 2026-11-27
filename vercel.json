@@ -3,11 +3,45 @@
   "framework": null,
   "installCommand": "npm install --omit=dev --no-audit --no-fund",
   "outputDirectory": "frontend",
-  "rewrites": [
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "testnet.nullfamily.fun"
+        }
+      ],
+      "destination": "https://nullfamily.fun/:path*",
+      "permanent": false
+    },
     {
       "source": "/nft",
-      "destination": "/nft.html"
+      "destination": "/",
+      "permanent": false
     },
+    {
+      "source": "/nft.html",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/app.html",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/quests",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/quests.html",
+      "destination": "/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
     {
       "source": "/apply",
       "destination": "/apply.html"
@@ -19,20 +53,6 @@
     {
       "source": "/api/stats-check/:n",
       "destination": "/api/stats"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "testnet.nullfamily.fun"
-        }
-      ],
-      "destination": "/app.html"
-    },
-    {
-      "source": "/",
-      "destination": "/quests.html"
     }
   ],
   "functions": {

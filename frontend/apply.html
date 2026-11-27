@@ -139,7 +139,7 @@
       <div class="mut">You're on the list. Spots are limited, so keep an eye on <a class="xh2" href="https://x.com/nullfamily" target="_blank" rel="noopener">@nullfamily</a> for the next steps.</div>
       <div class="sum"><div><span class="mut">X username</span><b id="okU"></b></div><div><span class="mut">EVM address</span><b id="okA"></b></div></div>
       <div class="acts">
-        <a class="btn" id="okTest" href="https://testnet.nullfamily.fun">Go to testnet →</a>
+        <a class="btn" id="okTest" href="/">Open the launchpad →</a>
         <a class="btn ghost" id="okX" href="https://x.com/nullfamily" target="_blank" rel="noopener"><svg class="xg" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>Open @nullfamily</a>
       </div>
       <div style="margin-top:14px"><button type="button" class="plain" id="edit" style="padding-left:0">Submit another response</button></div>
@@ -149,7 +149,7 @@
 </main>
 
 <footer>
-  <div class="links"><a class="xh2" id="fX" href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a href="/">Quests</a></div>
+  <div class="links"><a class="xh2" id="fX" href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a href="/">Launchpad</a></div>
   <div>null<span style="color:var(--acc)">_</span> · limited spots</div>
 </footer>
 
@@ -203,7 +203,6 @@
   paintLinks();
   api("config").then((c) => {
     if (c.xHandle) HANDLE = c.xHandle;
-    if (c.testnet && /^https:\/\//.test(c.testnet.url || "")) $("okTest").href = c.testnet.url;
     paintLinks();
   }).catch(() => {});
 

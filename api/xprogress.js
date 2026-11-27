@@ -16,6 +16,7 @@ module.exports = P.handler(async (req, res) => {
     return P.send(res, 200, s);
   }
   if (req.method !== "POST") throw P.fail(405, "GET or POST");
+  P.pointsClosed();
   if (!P.publicConfig().ready) throw P.fail(503, "Quests open soon.");
   const b = await P.body(req);
   const h = P.normHandle(b.username);
