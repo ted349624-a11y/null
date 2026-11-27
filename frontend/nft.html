@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NFTs — null_</title>
+<meta name="description" content="Launch an NFT collection with its own coin. Every NFT holds a fixed amount of coins: turn NFTs into coins and back any time." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308090b'/%3E%3Crect x='8' y='22' width='16' height='4' fill='%23c6ff3d'/%3E%3C/svg%3E" />
+<style>
+  :root { --bg:#08090b; --card:#111316; --card2:#0c0e10; --line:#1f2328; --line2:#2f353c; --txt:#eceff1; --mut:#7d8790; --acc:#c6ff3d; --accTxt:#0d1400; --red:#ff5d6c; --grn:#4ade80; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--txt); }
+  .mono { font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  a { color:var(--acc); text-decoration:none; } a:hover { text-decoration:underline; }
+  header { position:sticky; top:0; z-index:10; background:rgba(8,9,11,.88); backdrop-filter:blur(8px); display:flex; align-items:center; gap:18px; padding:12px 24px; border-bottom:1px solid var(--line); }
+  .logo { font:700 22px/1 ui-monospace, Menlo, monospace; letter-spacing:-.5px; color:var(--txt); }
+  .logo b { color:var(--acc); } .logo:hover { text-decoration:none; }
+  nav { display:flex; gap:4px; }
+  nav a { color:var(--mut); font-weight:600; font-size:14px; padding:7px 12px; border-radius:9px; }
+  nav a.on { color:var(--txt); background:#171a1e; } nav a:hover { color:var(--txt); text-decoration:none; }
+  .sp { flex:1; }
+  .net { font-size:12px; color:var(--mut); border:1px solid var(--line); border-radius:20px; padding:4px 10px; white-space:nowrap; }
+  button, .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; background:var(--acc); color:var(--accTxt); border:0; border-radius:10px; padding:11px 18px; font-family:inherit; font-size:14px; font-weight:700; line-height:1.2; cursor:pointer; text-decoration:none !important; white-space:nowrap; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .ghost { background:transparent; color:var(--txt); border:1px solid var(--line); font-weight:600; }
+  .ghost:hover { border-color:var(--line2); }
+  .sm { padding:7px 12px; font-size:13px; border-radius:9px; }
+  .wide { width:100%; }
+  main { max-width:1120px; margin:0 auto; padding:24px 20px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .mut { color:var(--mut); } .small { font-size:13px; } .tiny { font-size:12px; }
+  .row { display:flex; gap:10px; align-items:center; } .wrap { flex-wrap:wrap; } .between { justify-content:space-between; }
+  .badge { display:inline-block; background:#1c2410; color:var(--acc); padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+  .badge.mutd { background:#1a1d21; color:var(--mut); }
+  .badge.trade { background:#10202a; color:#7cc8ff; }
+  h1 { margin:0; font:700 34px/1.1 ui-monospace, Menlo, monospace; letter-spacing:-1.2px; }
+  h1 span { color:var(--acc); }
+  h2 { margin:0 0 4px; font-size:18px; }
+  label { display:block; font-size:12px; color:var(--mut); margin:14px 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+  input, select { width:100%; background:var(--card2); border:1px solid var(--line); border-radius:10px; color:var(--txt); padding:11px 12px; font:16px ui-monospace, Menlo, monospace; outline:0; }
+  input:focus, select:focus { border-color:var(--acc); }
+  .err { color:var(--red); font-size:13px; min-height:1px; margin-top:8px; }
+  .ok { color:var(--grn); }
+  #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); background:#1a1d21; border:1px solid var(--line2); color:var(--txt); padding:11px 16px; border-radius:10px; font-size:14px; opacity:0; pointer-events:none; transition:.2s; z-index:30; max-width:92vw; }
+  #toast.show { opacity:1; transform:translateX(-50%); }
+  [hidden] { display:none !important; }
+
+  /* list */
+  .hero { display:grid; grid-template-columns:1fr auto; gap:20px; align-items:center; padding:26px; margin-bottom:18px; }
+  .hero p { margin:10px 0 0; color:var(--mut); max-width:620px; }
+  .steps { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .steps span { font-size:12px; color:var(--txt); background:var(--card2); border:1px solid var(--line); border-radius:20px; padding:5px 11px; }
+  .tabs { display:flex; gap:6px; margin:4px 0 14px; flex-wrap:wrap; }
+  .tabs button { background:transparent; color:var(--mut); border:1px solid var(--line); font-weight:600; padding:7px 13px; font-size:13px; }
+  .tabs button.on { color:var(--txt); border-color:var(--line2); background:#171a1e; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px; }
+  .tile { display:block; background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; color:var(--txt); }
+  .tile:hover { border-color:var(--line2); text-decoration:none; }
+  .tile img { display:block; width:100%; aspect-ratio:1; background:#08090b; }
+  .tile .b { padding:12px 14px 14px; }
+  .tile .nm { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar { height:6px; background:#1a1d21; border-radius:6px; overflow:hidden; margin-top:10px; }
+  .bar i { display:block; height:100%; background:var(--acc); border-radius:6px; }
+  .empty { padding:40px 20px; text-align:center; color:var(--mut); }
+
+  /* launch */
+  .two { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:18px; align-items:start; }
+  .pv { position:sticky; top:76px; }
+  .pv img { width:96px; height:96px; border-radius:10px; flex:none; background:#08090b; }
+  .kv { display:flex; justify-content:space-between; gap:14px; padding:9px 0; border-top:1px solid var(--line); font-size:14px; }
+  .kv:first-of-type { border-top:0; }
+  .kv b { font-family:ui-monospace, Menlo, monospace; font-weight:600; text-align:right; overflow-wrap:anywhere; }
+  .hint { font-size:12px; color:var(--mut); margin-top:5px; }
+  .fields2 { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+
+  /* collection */
+  .col { display:grid; grid-template-columns:minmax(0,420px) minmax(0,1fr); gap:20px; align-items:start; }
+  .art { width:100%; aspect-ratio:1; border-radius:14px; border:1px solid var(--line); display:block; background:#08090b; }
+  .stats { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:12px; }
+  .stat { background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+  .stat .k { font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em; }
+  .stat .v { font:700 17px/1.3 ui-monospace, Menlo, monospace; margin-top:2px; overflow-wrap:anywhere; }
+  .panels { display:grid; gap:14px; }
+  .seg { display:flex; background:var(--card2); border:1px solid var(--line); border-radius:10px; padding:3px; gap:3px; }
+  .seg button { flex:1; background:transparent; color:var(--mut); font-weight:600; padding:8px; }
+  .seg button.on { background:#1c2026; color:var(--txt); }
+  .qty { display:flex; align-items:center; gap:8px; }
+  .qty button { width:42px; padding:10px 0; }
+  .qty input { text-align:center; }
+  .quote { font-size:13px; color:var(--mut); margin-top:8px; min-height:20px; }
+  .nfts { display:grid; grid-template-columns:repeat(auto-fill, minmax(78px, 1fr)); gap:8px; margin-top:12px; max-height:360px; overflow:auto; padding:2px; }
+  .nft { position:relative; border-radius:9px; overflow:hidden; border:2px solid transparent; cursor:pointer; background:#08090b; }
+  .nft img { display:block; width:100%; aspect-ratio:1; }
+  .nft.sel { border-color:var(--acc); }
+  .nft .id { position:absolute; left:4px; bottom:3px; font:600 10px ui-monospace, Menlo, monospace; color:#fff; background:rgba(0,0,0,.55); padding:0 4px; border-radius:4px; }
+  .got { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .got img { width:64px; height:64px; border-radius:8px; }
+  .link { background:none; border:0; color:var(--acc); padding:0; font-weight:600; font-size:13px; }
+  .back { display:inline-block; margin-bottom:14px; font-size:14px; color:var(--mut); }
+
+  @media (max-width:860px) {
+    header { padding:10px 14px; gap:10px; } nav a { padding:6px 9px; } .net { display:none; }
+    main { padding:16px 12px 50px; }
+    .hero { grid-template-columns:1fr; padding:20px; }
+    h1 { font-size:27px; }
+    .two, .col { grid-template-columns:1fr; }
+    .pv { position:static; }
+    .grid { grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
+    .tile .b { padding:10px 11px 12px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <a class="logo" href="/">null<b>_</b></a>
+  <nav><a href="/">Coins</a><a href="/nft" class="on">NFTs</a></nav>
+  <div class="sp"></div>
+  <span class="net" id="net"></span>
+  <button class="sm" id="connect">Connect wallet</button>
+</header>
+<main id="view"></main>
+<div id="toast"></div>
+
+<script src="./ethers.umd.min.js"></script>
+<script src="./nft-config.js"></script>
+<script>
+(() => {
+"use strict";
+const CFG = window.NULL_NFT;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+let toastT;
+const toast = (m, ms = 3200) => { const t = $("toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), ms); };
+
+if (!CFG || !CFG.factory) { $("view").innerHTML = '<div class="card empty">NFT launches are coming soon.</div>'; return; }
+$("net").textContent = CFG.chainName;
+
+// ---------------------------------------------------------------- contracts
+const INFO_T = "tuple(address collection,address coin,address creator,string name,string symbol,uint256 nftSupply,uint256 perNFT,uint256 mintPrice,uint256 mintEnd,uint256 maxPerWallet,uint256 minted,uint256 publicCap,uint256 totalNFTs,uint256 vaultSize,bool finalized,uint256 mintFeeBps,uint256 lpBps,bytes32 seed)";
+const ERRORS = ["error WrongLaunchFee()", "error BadText()", "error BadSupply()", "error UnevenSplit()", "error BadPrice()", "error BadDuration()", "error BadWalletLimit()", "error MintClosed()", "error BadQuantity()", "error WrongValue()", "error SoldOut()", "error WalletLimit()", "error AlreadyFinalized()", "error MintRunning()", "error NotOpen()", "error NotOwner()", "error VaultTooSmall()", "error NoPool()", "error NothingOwed()"];
+const FACTORY_ABI = [
+  "function createCollection((string name,string symbol,uint32 nftSupply,uint256 coinSupply,uint256 mintPrice,uint64 duration,uint32 maxPerWallet) p) payable returns (address collection, address coin)",
+  "function launchFee() view returns (uint256)", "function mintFeeBps() view returns (uint16)", "function lpBps() view returns (uint16)", "function creatorFeeBps() view returns (uint16)",
+  "function collectionsCount() view returns (uint256)", `function latest(uint256 start, uint256 count) view returns (${INFO_T}[])`,
+  "function collectFees(address collection) returns (uint256 eth, uint256 coins)", "function liquidityOf(address) view returns (uint128)", "function creatorFeeBpsOf(address) view returns (uint16)",
+  "function owed(address) view returns (uint256)", "function withdrawOwed()",
+  "event CollectionCreated(address indexed collection, address indexed coin, address indexed creator, string name, string symbol, uint256 nftSupply, uint256 coinSupply, uint256 mintPrice, uint256 mintEnd)",
+  ...ERRORS,
+];
+const COLLECTION_ABI = [
+  `function info() view returns (${INFO_T})`, "function mint(uint256 quantity) payable", "function finalize()", "function toCoins(uint256[] ids)", "function toNFTs(uint256 n) returns (uint256[])",
+  "function ownedIds(address owner, uint256 from, uint256 count) view returns (uint256[])", "function mintedBy(address) view returns (uint256)", "function owed(address) view returns (uint256)", "function withdrawOwed()",
+  "event ToNFTs(address indexed account, uint256[] ids, uint256 coins)", ...ERRORS,
+];
+const COIN_ABI = ["function balanceOf(address) view returns (uint256)", "function allowance(address,address) view returns (uint256)", "function approve(address,uint256) returns (bool)", "function totalSupply() view returns (uint256)"];
+const PERMIT2_ABI = ["function allowance(address owner, address token, address spender) view returns (uint160 amount, uint48 expiration, uint48 nonce)", "function approve(address token, address spender, uint160 amount, uint48 expiration)"];
+const ROUTER_ABI = ["function execute(bytes commands, bytes[] inputs, uint256 deadline) payable"];
+const KEY_T = "tuple(address,address,uint24,int24,address)";
+const QUOTER_ABI = [`function quoteExactInputSingle(tuple(${KEY_T} poolKey, bool zeroForOne, uint128 exactAmount, bytes hookData) params) returns (uint256 amountOut, uint256 gasEstimate)`];
+const STATEVIEW_ABI = ["function getSlot0(bytes32) view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee)"];
+
+const rp = new ethers.JsonRpcProvider(CFG.rpcUrl, CFG.chainId, { staticNetwork: true, batchMaxCount: 1 });
+const factoryR = new ethers.Contract(CFG.factory, FACTORY_ABI, rp);
+const coder = ethers.AbiCoder.defaultAbiCoder();
+const keyOf = (coin) => [ethers.ZeroAddress, coin, 10000, 200, ethers.ZeroAddress];
+const poolIdOf = (coin) => ethers.keccak256(coder.encode(["address", "address", "uint24", "int24", "address"], keyOf(coin)));
+
+// ---------------------------------------------------------------- formatting
+const E18 = 10n ** 18n;
+function fmtUnits(v, max = 6) {
+  v = BigInt(v);
+  const neg = v < 0n; if (neg) v = -v;
+  const whole = v / E18, frac = v % E18;
+  let f = frac.toString().padStart(18, "0").slice(0, max).replace(/0+$/, "");
+  if (whole === 0n && !f && frac > 0n) return (neg ? "-" : "") + "<0." + "0".repeat(max - 1) + "1";
+  return (neg ? "-" : "") + whole.toLocaleString("en-US") + (f ? "." + f : "");
+}
+const fmtEth = (v, max = 6) => fmtUnits(v, max) + " ETH";
+const plural = (n, w) => `${n} ${w}${Number(n) === 1 ? "" : "s"}`;
+function timeLeft(sec) {
+  if (sec <= 0) return "ended";
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : m ? `${m}m ${s}s` : `${s}s`;
+}
+const now = () => Math.floor(Date.now() / 1000);
+function errMsg(e) {
+  const name = e?.revert?.name || (String(e?.shortMessage || e?.message || "").match(/custom error '(\w+)/) || [])[1];
+  const map = {
+    WrongLaunchFee: "The launch fee changed. Reload and try again.", BadText: "Use letters, numbers and simple punctuation (no quotes or < > &).",
+    BadSupply: "NFT supply must be 2 to 10,000 and coin supply 1 to 1,000,000,000,000.", UnevenSplit: "The coin supply must split evenly between the NFTs.",
+    BadPrice: "Mint price must be between 0.000000001 and 100 ETH.", BadDuration: "Mint duration must be between 5 minutes and 30 days.", BadWalletLimit: "The wallet limit can't be more than the NFT supply.",
+    MintClosed: "The mint has ended.", BadQuantity: "Pick a smaller amount (up to 20 per mint, 50 per conversion).", WrongValue: "Wrong amount of ETH.", SoldOut: "Not that many NFTs left.",
+    WalletLimit: "That would go over the per-wallet limit.", AlreadyFinalized: "Trading is already open.", MintRunning: "The mint is still running.", NotOpen: "Conversions open when trading opens.",
+    NotOwner: "You don't own that NFT.", VaultTooSmall: "Not enough NFTs in the vault right now.", NoPool: "No pool yet.", NothingOwed: "Nothing to withdraw.",
+  };
+  if (map[name]) return map[name];
+  if (e?.code === "ACTION_REJECTED" || e?.info?.error?.code === 4001) return "Rejected in wallet.";
+  if (/insufficient funds/i.test(e?.message || "")) return "Not enough ETH for this (and gas).";
+  return e?.shortMessage || e?.reason || e?.message || String(e);
+}
+
+// ---------------------------------------------------------------- art (same drawing as NullNFTArt.sol)
+const artCache = new Map();
+function artSvg(seed, id, symbol) {
+  const h = BigInt(ethers.keccak256(coder.encode(["bytes32", "uint256"], [seed, id])));
+  const hue = (BigInt(seed) % 360n).toString();
+  let body = "";
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) {
+    const bit = BigInt(y * 4 + x);
+    if (((h >> bit) & 1n) === 0n) continue;
+    const shade = (h >> (32n + bit * 2n)) & 3n;
+    const fill = `hsl(${hue},85%,${(38n + shade * 14n).toString()}%)`;
+    for (const cx of [x, 7 - x]) body += `<rect x="${64 + cx * 48}" y="${64 + y * 48}" width="44" height="44" rx="6" fill="${fill}"/>`;
+  }
+  const label = esc(symbol) + (id ? ` #${id}` : "");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#08090b"/>${body}<text x="64" y="488" font-family="ui-monospace,Menlo,monospace" font-size="22" fill="#eceff1">${label}</text><text x="448" y="488" text-anchor="end" font-family="ui-monospace,Menlo,monospace" font-size="22" font-weight="700" fill="#eceff1">null<tspan fill="#c6ff3d">_</tspan></text></svg>`;
+}
+function artUrl(seed, id, symbol) {
+  const k = seed + ":" + id;
+  if (!artCache.has(k)) artCache.set(k, "data:image/svg+xml;base64," + btoa(artSvg(seed, id, symbol)));
+  return artCache.get(k);
+}
+
+// ---------------------------------------------------------------- wallet
+let signer = null, account = null;
+async function connect() {
+  if (!window.ethereum) {
+    location.href = "https://metamask.app.link/dapp/" + location.host + location.pathname + location.hash;
+    return;
+  }
+  const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+  const hex = "0x" + CFG.chainId.toString(16);
+  try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] }); }
+  catch (e) {
+    if (e.code === 4902 || /Unrecognized chain/i.test(e.message || "")) {
+      await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: hex, chainName: CFG.chainName, rpcUrls: [CFG.rpcUrl], nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, blockExplorerUrls: [CFG.explorer] }] });
+    } else throw e;
+  }
+  signer = await new ethers.BrowserProvider(window.ethereum).getSigner();
+  account = (await signer.getAddress()).toLowerCase();
+  $("connect").textContent = short(account);
+  $("connect").classList.add("ghost");
+}
+async function need() { if (!signer) await connect(); if (!signer) throw new Error("Connect your wallet first."); return signer; }
+$("connect").onclick = () => connect().then(route).catch((e) => toast(errMsg(e)));
+window.ethereum?.on?.("accountsChanged", () => { signer = null; account = null; connect().then(route).catch(() => {}); });
+window.ethereum?.on?.("chainChanged", () => location.reload());
+// reconnect silently if the site is already allowed
+window.ethereum?.request?.({ method: "eth_accounts" }).then((a) => { if (a && a.length) connect().then(route).catch(() => {}); }).catch(() => {});
+
+async function send(label, fn) {
+  const t = await fn();
+  toast(`${label}: waiting for confirmation…`, 60000);
+  const rc = await t.wait();
+  toast(`${label}: done ✓`);
+  return rc;
+}
+
+// ---------------------------------------------------------------- router
+let timer = null;
+function route() {
+  clearInterval(timer);
+  const h = location.hash.replace(/^#\/?/, "");
+  if (h === "launch") return viewLaunch();
+  const m = /^c\/(0x[0-9a-fA-F]{40})$/.exec(h);
+  if (m) return viewCollection(m[1]);
+  return viewList();
+}
+window.addEventListener("hashchange", route);
+
+// ---------------------------------------------------------------- list
+let LIST = null, TAB = "all";
+async function viewList() {
+  document.title = "NFTs — null_";
+  $("view").innerHTML = `
+    <section class="card hero">
+      <div>
+        <h1>NFTs with their own coin<span>_</span></h1>
+        <p>Launch a collection and pick how many coins it has. Every NFT holds an equal share of them. Holders can turn an NFT into its coins and trade them on Uniswap, or collect coins and turn them back into an NFT.</p>
+        <div class="steps"><span>1 · Mint NFTs</span><span>2 · Pool opens on Uniswap</span><span>3 · NFT ⇄ coins any time</span></div>
+      </div>
+      <a class="btn" href="#launch">Launch a collection</a>
+    </section>
+    <div class="tabs" id="tabs">
+      <button data-t="all">All</button><button data-t="mint">Minting now</button><button data-t="trade">Trading</button>
+    </div>
+    <div id="grid"><div class="card empty">Loading…</div></div>`;
+  document.querySelectorAll("#tabs button").forEach((b) => { b.classList.toggle("on", b.dataset.t === TAB); b.onclick = () => { TAB = b.dataset.t; viewList(); }; });
+  try { LIST = await factoryR.latest(0, 60); } catch (e) { $("grid").innerHTML = `<div class="card empty">Couldn't load collections. ${esc(errMsg(e))}</div>`; return; }
+  renderGrid();
+  timer = setInterval(() => factoryR.latest(0, 60).then((l) => { LIST = l; renderGrid(); }).catch(() => {}), 20000);
+}
+function status(c) {
+  if (c.finalized) return c.minted > 0n ? "trade" : "ended";
+  if (Number(c.mintEnd) <= now() || c.minted >= c.publicCap) return "closing";
+  return "mint";
+}
+function renderGrid() {
+  const g = $("grid"); if (!g) return;
+  const items = LIST.filter((c) => TAB === "all" || (TAB === "mint" ? ["mint", "closing"].includes(status(c)) : status(c) === "trade"));
+  if (!items.length) { g.innerHTML = `<div class="card empty">${LIST.length ? "Nothing here right now." : 'No collections yet. <a href="#launch">Launch the first one →</a>'}</div>`; return; }
+  g.innerHTML = `<div class="grid">${items.map((c) => {
+    const st = status(c), pct = c.publicCap > 0n ? Number((c.minted * 1000n) / c.publicCap) / 10 : 0;
+    const badge = st === "mint" ? `<span class="badge">Minting · ${timeLeft(Number(c.mintEnd) - now())}</span>` : st === "trade" ? '<span class="badge trade">Trading</span>' : st === "closing" ? '<span class="badge mutd">Opening soon</span>' : '<span class="badge mutd">Ended</span>';
+    return `<a class="tile" href="#c/${c.collection}"><img alt="" src="${artUrl(c.seed, 0, c.symbol)}"><div class="b">
+      <div class="row between"><div class="nm">${esc(c.name)}</div></div>
+      <div class="row between small" style="margin-top:2px"><span class="mut mono">$${esc(c.symbol)}</span>${badge}</div>
+      <div class="small" style="margin-top:8px">${fmtEth(c.mintPrice)} <span class="mut">· holds ${fmtUnits(c.perNFT)}</span></div>
+      ${st === "mint" || st === "closing" ? `<div class="bar"><i style="width:${Math.min(100, pct)}%"></i></div><div class="tiny mut" style="margin-top:5px">${c.minted}/${c.publicCap} minted</div>` : `<div class="tiny mut" style="margin-top:8px">${c.totalNFTs} NFTs · ${c.vaultSize} in vault</div>`}
+    </div></a>`;
+  }).join("")}</div>`;
+}
+
+// ---------------------------------------------------------------- launch
+let SETTINGS = null;
+async function viewLaunch() {
+  document.title = "Launch a collection — null_";
+  $("view").innerHTML = `
+    <a class="back" href="#">← All collections</a>
+    <div class="two">
+      <section class="card">
+        <h2>Launch an NFT collection</h2>
+        <div class="mut small">Each NFT holds an equal share of the coins. The pool opens on Uniswap when the mint ends.</div>
+        <div class="fields2">
+          <div><label for="fName">Name</label><input id="fName" maxlength="32" placeholder="Null Cats" autocomplete="off"></div>
+          <div><label for="fSym">Symbol</label><input id="fSym" maxlength="12" placeholder="NCAT" autocomplete="off" autocapitalize="characters"></div>
+          <div><label for="fNft">NFT supply</label><input id="fNft" inputmode="numeric" value="100"></div>
+          <div><label for="fCoin">Coin supply</label><input id="fCoin" inputmode="numeric" value="1000000"></div>
+          <div><label for="fPrice">Mint price (ETH)</label><input id="fPrice" inputmode="decimal" value="0.001"></div>
+          <div><label for="fDur">Mint stays open for</label><select id="fDur"><option value="3600">1 hour</option><option value="21600">6 hours</option><option value="86400" selected>24 hours</option><option value="259200">3 days</option><option value="604800">7 days</option></select></div>
+        </div>
+        <label for="fMax">Max per wallet <span style="text-transform:none">(optional)</span></label><input id="fMax" inputmode="numeric" placeholder="No limit">
+        <div class="err" id="fErr"></div>
+        <button class="wide" id="fGo" style="margin-top:16px">Launch collection</button>
+        <div class="hint" id="fFee" style="text-align:center;margin-top:8px"></div>
+      </section>
+      <section class="card pv">
+        <div class="row" style="gap:14px;align-items:flex-start"><img id="pvArt" alt=""><div><div style="font-weight:700" id="pvName">Null Cats</div><div class="mut mono small" id="pvSym">$NCAT</div><div class="tiny mut" style="margin-top:6px">Every NFT gets its own pattern, drawn on-chain in one color per collection.</div></div></div>
+        <div style="margin-top:14px" id="pvRows"></div>
+      </section>
+    </div>`;
+  const seed = ethers.hexlify(ethers.randomBytes(32));
+  try { if (!SETTINGS) { const [launchFee, mintFeeBps, lpBps, creatorFeeBps] = await Promise.all([factoryR.launchFee(), factoryR.mintFeeBps(), factoryR.lpBps(), factoryR.creatorFeeBps()]); SETTINGS = { launchFee, mintFeeBps: Number(mintFeeBps), lpBps: Number(lpBps), creatorFeeBps: Number(creatorFeeBps) }; } }
+  catch (e) { $("fErr").textContent = "Couldn't read the launch settings: " + errMsg(e); return; }
+  $("fFee").textContent = SETTINGS.launchFee > 0n ? `Launch fee: ${fmtEth(SETTINGS.launchFee)}` : "No launch fee.";
+  const ids = ["fName", "fSym", "fNft", "fCoin", "fPrice", "fDur", "fMax"];
+  ids.forEach((id) => ($(id).oninput = () => preview(seed)));
+  $("fSym").addEventListener("input", () => { const p = $("fSym").selectionStart; $("fSym").value = $("fSym").value.toUpperCase(); $("fSym").setSelectionRange(p, p); });
+  $("fGo").onclick = () => doLaunch();
+  preview(seed);
+}
+const TEXT_OK = /^[\x20-\x7e]+$/;
+function readForm() {
+  const name = $("fName").value.trim(), symbol = $("fSym").value.trim();
+  const nft = Number($("fNft").value.replace(/[, _]/g, "")), coin = $("fCoin").value.replace(/[, _]/g, "");
+  const max = $("fMax").value.trim() ? Number($("fMax").value.replace(/[, _]/g, "")) : 0;
+  let price = null; try { price = ethers.parseEther($("fPrice").value.trim() || "0"); } catch {}
+  const p = { name, symbol, nftSupply: nft, coinSupply: coin, mintPrice: price, duration: Number($("fDur").value), maxPerWallet: max };
+  let err = "";
+  if (!name || !symbol) err = "Enter a name and a symbol.";
+  else if (!TEXT_OK.test(name + symbol) || /["\\<>&]/.test(name + symbol)) err = "Use letters, numbers and simple punctuation (no quotes or < > &).";
+  else if (!Number.isInteger(nft) || nft < 2 || nft > 10000) err = "NFT supply must be a whole number from 2 to 10,000.";
+  else if (!/^\d+$/.test(coin) || BigInt(coin) < 1n || BigInt(coin) > 10n ** 12n) err = "Coin supply must be a whole number from 1 to 1,000,000,000,000.";
+  else if ((BigInt(coin) * E18) % BigInt(nft) !== 0n) err = `${Number(coin).toLocaleString("en-US")} coins don't split evenly between ${nft.toLocaleString("en-US")} NFTs. Try a coin supply that divides by ${nft}.`;
+  else if (price === null || price < 10n ** 9n || price > 100n * E18) err = "Mint price must be between 0.000000001 and 100 ETH.";
+  else if (!Number.isInteger(max) || max < 0 || max > nft) err = "Max per wallet must be a whole number up to the NFT supply.";
+  return { p, err };
+}
+function capFor(n, lpBps) {
+  const pool = (m) => (m === 0 ? 0 : Math.max(1, Math.floor((m * lpBps) / 10000)));
+  let m = Math.floor((n * 10000) / (10000 + lpBps));
+  while (m > 0 && m + pool(m) > n) m--;
+  while (m + 1 + pool(m + 1) <= n) m++;
+  return { cap: m, pool: pool(m) };
+}
+function preview(seed) {
+  const { p, err } = readForm();
+  const sym = (p.symbol || "NCAT").slice(0, 12);
+  $("pvName").textContent = p.name || "Null Cats";
+  $("pvSym").textContent = "$" + sym;
+  $("pvArt").src = artUrl(seed, 1, sym);
+  $("fErr").textContent = err;
+  $("fGo").disabled = Boolean(err);
+  if (err || !SETTINGS) { $("pvRows").innerHTML = ""; return; }
+  const per = (BigInt(p.coinSupply) * E18) / BigInt(p.nftSupply);
+  const { cap, pool } = capFor(p.nftSupply, SETTINGS.lpBps);
+  const raise = p.mintPrice * BigInt(cap);
+  const platform = (raise * BigInt(SETTINGS.mintFeeBps)) / 10000n;
+  const poolEth = p.mintPrice * BigInt(pool);
+  const creator = raise - platform - poolEth;
+  const coinPrice = (p.mintPrice * E18) / per; // wei per whole coin
+  $("pvRows").innerHTML = [
+    ["Each NFT holds", `${fmtUnits(per)} ${esc(sym)}`],
+    ["Public mint", `${cap.toLocaleString("en-US")} NFTs × ${fmtEth(p.mintPrice)}`],
+    ["Pool opens with", `${plural(pool, "NFT")}' coins + ${fmtEth(poolEth)}`],
+    ["Starting price", `1 ${esc(sym)} = ${fmtEth(coinPrice, 9)}`],
+    ["You get if it sells out", `${fmtEth(creator)}`],
+    ["Trading fee", `1% per trade, ${SETTINGS.creatorFeeBps / 100}% of it to you`],
+  ].map(([k, v]) => `<div class="kv"><span class="mut">${k}</span><b>${v}</b></div>`).join("") +
+  `<div class="tiny mut" style="margin-top:10px">If it doesn't sell out, the mint closes when the timer ends and the pool opens with what was minted. ${SETTINGS.mintFeeBps / 100}% of the mint goes to null_.</div>`;
+}
+async function doLaunch() {
+  const { p, err } = readForm();
+  if (err) { $("fErr").textContent = err; return; }
+  const btn = $("fGo");
+  try {
+    btn.disabled = true; btn.textContent = "Check your wallet…";
+    const s = await need();
+    const f = new ethers.Contract(CFG.factory, FACTORY_ABI, s);
+    const fee = await factoryR.launchFee();
+    const args = { ...p, coinSupply: BigInt(p.coinSupply) };
+    const rc = await send("Launch", () => f.createCollection(args, { value: fee }));
+    const ev = rc.logs.map((l) => { try { return f.interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "CollectionCreated");
+    LIST = null;
+    location.hash = ev ? `c/${ev.args.collection}` : "";
+  } catch (e) {
+    $("fErr").textContent = errMsg(e);
+  } finally { btn.disabled = false; btn.textContent = "Launch collection"; }
+}
+
+// ---------------------------------------------------------------- collection
+const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { eth: 0n, coin: 0n }, price: null, pending: null };
+async function viewCollection(addr) {
+  addr = ethers.getAddress(addr);
+  if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null });
+  $("view").innerHTML = `<a class="back" href="#">← All collections</a><div id="colBody"><div class="card empty">Loading…</div></div>`;
+  await refresh();
+  timer = setInterval(() => refresh(true), 15000);
+}
+async function refresh(quiet) {
+  const col = new ethers.Contract(S.addr, COLLECTION_ABI, rp);
+  try {
+    S.info = await col.info();
+  } catch (e) { if (!quiet) $("colBody").innerHTML = `<div class="card empty">Couldn't load this collection. ${esc(errMsg(e))}</div>`; return; }
+  const c = S.info;
+  const tasks = [];
+  if (account) {
+    tasks.push(rp.getBalance(account).then((v) => (S.bal.eth = v)));
+    tasks.push(new ethers.Contract(c.coin, COIN_ABI, rp).balanceOf(account).then((v) => (S.bal.coin = v)));
+    tasks.push(col.mintedBy(account).then((v) => (S.mintedBy = v)));
+    tasks.push(loadMine(col));
+  }
+  if (c.finalized && c.minted > 0n) {
+    tasks.push(new ethers.Contract(CFG.v4.stateView, STATEVIEW_ABI, rp).getSlot0(poolIdOf(c.coin)).then(([sp]) => { S.price = sp; }).catch(() => {}));
+    tasks.push(factoryR.collectFees.staticCall(S.addr).then(([e, k]) => (S.pending = { eth: e, coins: k })).catch(() => (S.pending = null)));
+  }
+  await Promise.all(tasks.map((t) => t.catch(() => {})));
+  if (!document.getElementById("colBody")) return;
+  if (quiet && document.activeElement && ["INPUT", "SELECT"].includes(document.activeElement.tagName)) { renderStatsOnly(); return; }
+  render();
+}
+async function loadMine(col) {
+  const total = Number(S.info.totalNFTs), out = [];
+  for (let from = 1; from <= total; from += 2000) out.push(...(await col.ownedIds(account, from, 2000)).map(Number));
+  S.my = out;
+  for (const id of [...S.sel]) if (!out.includes(id)) S.sel.delete(id);
+}
+// coins per ETH in the pool, as a float
+const poolPrice = () => (S.price ? Number((S.price * S.price * 10n ** 12n) >> 192n) / 1e12 : null);
+function nftValue() {
+  const p = poolPrice(); if (!p) return null;
+  return Number(ethers.formatEther(S.info.perNFT)) / p; // ETH per NFT at the pool price
+}
+function renderStatsOnly() {
+  const el = $("stats"); if (el) el.innerHTML = statsHtml();
+}
+function statsHtml() {
+  const c = S.info, v = nftValue();
+  const cells = [
+    ["Mint price", fmtEth(c.mintPrice)],
+    ["Each NFT holds", `${fmtUnits(c.perNFT)} ${esc(c.symbol)}`],
+    c.finalized ? ["NFT value in the pool", v === null ? "—" : `${v < 0.000001 ? v.toExponential(2) : v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")} ETH`] : ["Minted", `${c.minted} / ${c.publicCap}`],
+    c.finalized ? ["NFTs / in vault", `${c.totalNFTs} / ${c.vaultSize}`] : ["Mint ends", Number(c.mintEnd) > now() ? `in ${timeLeft(Number(c.mintEnd) - now())}` : "ended"],
+  ];
+  return cells.map(([k, val]) => `<div class="stat"><div class="k">${k}</div><div class="v">${val}</div></div>`).join("");
+}
+function render() {
+  const c = S.info, st = status(c), x = CFG.explorer;
+  document.title = `${c.name} — null_`;
+  const badge = st === "mint" ? '<span class="badge">Minting</span>' : st === "trade" ? '<span class="badge trade">Trading</span>' : st === "closing" ? '<span class="badge mutd">Mint closed</span>' : '<span class="badge mutd">Ended</span>';
+  $("colBody").innerHTML = `
+    <div class="col">
+      <section>
+        <img class="art" alt="" src="${artUrl(c.seed, 0, c.symbol)}">
+        <div class="stats" id="stats">${statsHtml()}</div>
+      </section>
+      <section class="panels">
+        <div class="card">
+          <div class="row between wrap"><h1 style="font-size:28px">${esc(c.name)}</h1>${badge}</div>
+          <div class="mut small" style="margin-top:6px"><span class="mono">$${esc(c.symbol)}</span> · by <a href="${x}/address/${c.creator}" target="_blank" rel="noopener">${short(c.creator)}</a>
+          · <a href="${x}/address/${c.collection}" target="_blank" rel="noopener">NFT contract</a> · <a href="${x}/token/${c.coin}" target="_blank" rel="noopener">Coin</a></div>
+          <div class="small" style="margin-top:10px">Every NFT holds <b>${fmtUnits(c.perNFT)} ${esc(c.symbol)}</b>. Turn an NFT into its coins and trade them, or turn ${fmtUnits(c.perNFT)} ${esc(c.symbol)} back into a random NFT from the vault.</div>
+        </div>
+        ${st === "mint" ? mintPanel() : ""}
+        ${st === "closing" ? closePanel() : ""}
+        ${st === "trade" ? tradePanel() + convertPanel() + feesPanel() : ""}
+        ${st === "ended" ? '<div class="card mut">This mint ended with no NFTs sold.</div>' : ""}
+      </section>
+    </div>`;
+  wire();
+}
+function mintLeft() {
+  const c = S.info;
+  let left = Number(c.publicCap - c.minted);
+  if (c.maxPerWallet > 0n && account) left = Math.min(left, Number(c.maxPerWallet - (S.mintedBy || 0n)));
+  return Math.max(0, Math.min(20, left));
+}
+function mintPanel() {
+  const c = S.info, pct = Number((c.minted * 1000n) / c.publicCap) / 10, max = mintLeft();
+  return `<div class="card">
+    <div class="row between"><h2>Mint</h2><span class="mut small">${timeLeft(Number(c.mintEnd) - now())} left</span></div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="row between small" style="margin-top:6px"><span>${c.minted} / ${c.publicCap} minted</span><span class="mut">${c.maxPerWallet > 0n ? `max ${c.maxPerWallet} per wallet` : ""}</span></div>
+    <div class="qty" style="margin-top:14px"><button class="ghost" id="qMinus">−</button><input id="qty" value="1" inputmode="numeric"><button class="ghost" id="qPlus">+</button></div>
+    <button class="wide" id="mintBtn" style="margin-top:12px" ${max ? "" : "disabled"}>Mint</button>
+    <div class="quote" id="mintNote"></div>
+    <div class="err" id="mintErr"></div>
+  </div>`;
+}
+function closePanel() {
+  return `<div class="card"><h2>The mint is closed</h2><div class="mut small">Open trading to put the pool on Uniswap and pay out the mint. Anyone can do it; it costs only gas.</div>
+    <button class="wide" id="finBtn" style="margin-top:12px">Open trading</button><div class="err" id="finErr"></div></div>`;
+}
+function tradePanel() {
+  const c = S.info;
+  return `<div class="card">
+    <div class="row between"><h2>Trade $${esc(c.symbol)}</h2><span class="mut tiny">Uniswap v4 · 1% fee</span></div>
+    <div class="seg" style="margin-top:10px"><button id="sBuy" class="${S.side === "buy" ? "on" : ""}">Buy</button><button id="sSell" class="${S.side === "sell" ? "on" : ""}">Sell</button></div>
+    <label for="amt">${S.side === "buy" ? "You pay (ETH)" : `You sell (${esc(c.symbol)})`}</label>
+    <input id="amt" inputmode="decimal" placeholder="0.0">
+    <div class="row between tiny mut" style="margin-top:6px"><span>Balance: ${S.side === "buy" ? fmtEth(S.bal.eth) : `${fmtUnits(S.bal.coin)} ${esc(c.symbol)}`}</span>${S.side === "sell" && S.bal.coin > 0n ? '<button class="link" id="amtMax">Max</button>' : ""}</div>
+    <div class="quote" id="quote"></div>
+    <button class="wide" id="tradeBtn" style="margin-top:10px">${S.side === "buy" ? "Buy" : "Sell"}</button>
+    <div class="tiny mut" style="margin-top:8px">Up to 3% price movement allowed. Coins also trade anywhere Uniswap v4 is supported.</div>
+    <div class="err" id="tradeErr"></div>
+  </div>`;
+}
+function convertPanel() {
+  const c = S.info, per = c.perNFT;
+  const canNfts = per > 0n ? Number(S.bal.coin / per) : 0, maxBack = Math.min(50, canNfts, Number(c.vaultSize));
+  const mine = S.my.length;
+  return `<div class="card">
+    <h2>NFT ⇄ coins</h2>
+    <div class="mut small">1 NFT = ${fmtUnits(per)} ${esc(c.symbol)}, both ways.</div>
+    <div style="margin-top:14px" class="row between"><b class="small">Your NFTs (${mine})</b>${mine ? `<button class="link" id="selAll">${S.sel.size === Math.min(mine, 50) ? "Clear" : "Select all"}</button>` : ""}</div>
+    ${!account ? '<div class="mut small" style="margin-top:6px">Connect your wallet to see your NFTs.</div>' : mine ? `<div class="nfts" id="nfts">${S.my.slice(0, 300).map((id) => `<div class="nft ${S.sel.has(id) ? "sel" : ""}" data-id="${id}"><img alt="" loading="lazy" src="${artUrl(c.seed, id, c.symbol)}"><span class="id">#${id}</span></div>`).join("")}</div>` : '<div class="mut small" style="margin-top:6px">You have no NFTs from this collection.</div>'}
+    <button class="wide" id="toCoinsBtn" style="margin-top:12px" ${S.sel.size ? "" : "disabled"}>${S.sel.size ? `Turn ${plural(S.sel.size, "NFT")} into ${fmtUnits(per * BigInt(S.sel.size))} ${esc(c.symbol)}` : "Pick NFTs to turn into coins"}</button>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line)">
+      <b class="small">Coins → NFT</b>
+      <div class="mut small" style="margin-top:2px">You have ${fmtUnits(S.bal.coin)} ${esc(c.symbol)} · ${c.vaultSize} NFTs in the vault</div>
+      <div class="qty" style="margin-top:10px"><button class="ghost" id="nMinus">−</button><input id="nBack" value="${maxBack ? 1 : 0}" inputmode="numeric"><button class="ghost" id="nPlus">+</button></div>
+      <button class="wide ghost" id="toNftsBtn" style="margin-top:10px" ${maxBack ? "" : "disabled"}>${maxBack ? `Turn ${fmtUnits(per)} ${esc(c.symbol)} into 1 NFT` : canNfts ? "The vault is empty" : `You need ${fmtUnits(per)} ${esc(c.symbol)} for 1 NFT`}</button>
+      <div id="gotNfts"></div>
+    </div>
+    <div class="err" id="convErr"></div>
+  </div>`;
+}
+function feesPanel() {
+  const c = S.info, p = S.pending;
+  if (!p) return "";
+  const has = p.eth > 0n || p.coins > 0n;
+  return `<div class="card">
+    <div class="row between"><h2>Trading fees</h2><span class="mut tiny">half to the creator</span></div>
+    <div class="small" style="margin-top:6px">${has ? `Waiting to be paid out: <b class="mono">${fmtEth(p.eth, 8)}</b> + <b class="mono">${fmtUnits(p.coins)} ${esc(c.symbol)}</b>` : "Nothing to pay out yet."}</div>
+    <button class="ghost wide sm" id="feesBtn" style="margin-top:10px" ${has ? "" : "disabled"}>Pay out fees</button>
+    <div class="err" id="feesErr"></div>
+  </div>`;
+}
+
+function wire() {
+  const c = S.info, col = () => new ethers.Contract(S.addr, COLLECTION_ABI, signer);
+  // mint
+  if ($("mintBtn")) {
+    const upd = () => {
+      const max = mintLeft(); let q = Math.floor(Number($("qty").value) || 0);
+      if (q > max) q = max; if (q < 1) q = max ? 1 : 0; $("qty").value = q;
+      $("mintBtn").textContent = q ? `Mint ${plural(q, "NFT")} · ${fmtEth(c.mintPrice * BigInt(q))}` : "Nothing left to mint";
+      $("mintBtn").disabled = !q;
+      $("mintNote").textContent = q && c.minted + BigInt(q) >= c.publicCap ? "This is the last mint: it also opens the Uniswap pool, so it costs more gas." : "";
+    };
+    $("qMinus").onclick = () => { $("qty").value = Number($("qty").value) - 1; upd(); };
+    $("qPlus").onclick = () => { $("qty").value = Number($("qty").value) + 1; upd(); };
+    $("qty").oninput = upd; upd();
+    $("mintBtn").onclick = async () => {
+      const q = Number($("qty").value); $("mintErr").textContent = "";
+      try { await need(); $("mintBtn").disabled = true; await send("Mint", () => col().mint(q, { value: c.mintPrice * BigInt(q) })); await refresh(); }
+      catch (e) { $("mintErr").textContent = errMsg(e); $("mintBtn").disabled = false; }
+    };
+  }
+  if ($("finBtn")) $("finBtn").onclick = async () => {
+    try { await need(); $("finBtn").disabled = true; await send("Open trading", () => col().finalize()); await refresh(); }
+    catch (e) { $("finErr").textContent = errMsg(e); $("finBtn").disabled = false; }
+  };
+  // trade
+  if ($("tradeBtn")) {
+    $("sBuy").onclick = () => { S.side = "buy"; render(); };
+    $("sSell").onclick = () => { S.side = "sell"; render(); };
+    if ($("amtMax")) $("amtMax").onclick = () => { $("amt").value = ethers.formatEther(S.bal.coin); quote(); };
+    let qt; $("amt").oninput = () => { clearTimeout(qt); qt = setTimeout(quote, 250); };
+    $("tradeBtn").onclick = trade;
+  }
+  // convert
+  if ($("nfts")) $("nfts").onclick = (e) => {
+    const t = e.target.closest(".nft"); if (!t) return;
+    const id = Number(t.dataset.id);
+    if (S.sel.has(id)) S.sel.delete(id); else if (S.sel.size < 50) S.sel.add(id); else toast("Up to 50 NFTs at a time.");
+    render();
+  };
+  if ($("selAll")) $("selAll").onclick = () => { if (S.sel.size === Math.min(S.my.length, 50)) S.sel.clear(); else S.sel = new Set(S.my.slice(0, 50)); render(); };
+  if ($("toCoinsBtn")) $("toCoinsBtn").onclick = async () => {
+    try { await need(); $("toCoinsBtn").disabled = true; const ids = [...S.sel]; await send("NFT → coins", () => col().toCoins(ids)); S.sel.clear(); await refresh(); }
+    catch (e) { $("convErr").textContent = errMsg(e); $("toCoinsBtn").disabled = false; }
+  };
+  if ($("toNftsBtn")) {
+    const per = c.perNFT, maxBack = () => Math.min(50, per > 0n ? Number(S.bal.coin / per) : 0, Number(c.vaultSize));
+    const upd = () => {
+      let n = Math.floor(Number($("nBack").value) || 0); const m = maxBack();
+      if (n > m) n = m; if (n < 1) n = m ? 1 : 0; $("nBack").value = n;
+      if (n) $("toNftsBtn").textContent = `Turn ${fmtUnits(per * BigInt(n))} ${c.symbol} into ${plural(n, "NFT")}`;
+      $("toNftsBtn").disabled = !n;
+    };
+    $("nMinus").onclick = () => { $("nBack").value = Number($("nBack").value) - 1; upd(); };
+    $("nPlus").onclick = () => { $("nBack").value = Number($("nBack").value) + 1; upd(); };
+    $("nBack").oninput = upd; upd();
+    $("toNftsBtn").onclick = async () => {
+      const n = Number($("nBack").value);
+      try {
+        await need(); $("toNftsBtn").disabled = true;
+        const rc = await send("Coins → NFT", () => col().toNFTs(n));
+        const ev = rc.logs.map((l) => { try { return col().interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "ToNFTs");
+        await refresh();
+        if (ev) $("gotNfts").innerHTML = `<div class="small ok" style="margin-top:10px">You got:</div><div class="got">${ev.args.ids.map((id) => `<img alt="#${id}" title="#${id}" src="${artUrl(c.seed, Number(id), c.symbol)}">`).join("")}</div>`;
+      } catch (e) { $("convErr").textContent = errMsg(e); $("toNftsBtn").disabled = false; }
+    };
+  }
+  if ($("feesBtn")) $("feesBtn").onclick = async () => {
+    try { const s = await need(); $("feesBtn").disabled = true; await send("Fees paid out", () => new ethers.Contract(CFG.factory, FACTORY_ABI, s).collectFees(S.addr)); await refresh(); }
+    catch (e) { $("feesErr").textContent = errMsg(e); $("feesBtn").disabled = false; }
+  };
+}
+
+function amountIn() {
+  try { const v = ethers.parseEther(($("amt").value || "").trim() || "0"); return v > 0n ? v : null; } catch { return null; }
+}
+async function getQuote(zeroForOne, amt) {
+  const q = new ethers.Contract(CFG.v4.quoter, QUOTER_ABI, rp);
+  const [out] = await q.quoteExactInputSingle.staticCall([keyOf(S.info.coin), zeroForOne, amt, "0x"]);
+  return out;
+}
+async function quote() {
+  const c = S.info, amt = amountIn(), el = $("quote"); if (!el) return;
+  $("tradeErr").textContent = "";
+  if (!amt) { el.textContent = ""; return; }
+  el.textContent = "Getting a quote…";
+  try {
+    const out = await getQuote(S.side === "buy", amt);
+    if (amountIn() !== amt) return;
+    el.innerHTML = S.side === "buy"
+      ? `You get about <b class="mono">${fmtUnits(out)} ${esc(c.symbol)}</b>${out >= c.perNFT ? ` · enough for ${plural(Number(out / c.perNFT), "NFT")}` : ""}`
+      : `You get about <b class="mono">${fmtEth(out, 8)}</b>`;
+  } catch (e) { el.textContent = "Couldn't get a quote: " + errMsg(e); }
+}
+async function trade() {
+  const c = S.info, amt = amountIn(), btn = $("tradeBtn"), buy = S.side === "buy";
+  $("tradeErr").textContent = "";
+  if (!amt) { $("tradeErr").textContent = "Enter an amount."; return; }
+  try {
+    const s = await need();
+    btn.disabled = true;
+    if (buy ? amt > S.bal.eth : amt > S.bal.coin) throw new Error(buy ? "Not enough ETH." : `Not enough ${c.symbol}.`);
+    const out = await getQuote(buy, amt);
+    const minOut = (out * 97n) / 100n;
+    if (!buy) {
+      const coin = new ethers.Contract(c.coin, COIN_ABI, s);
+      if ((await coin.allowance(account, CFG.v4.permit2)) < amt) await send("Approve", () => coin.approve(CFG.v4.permit2, ethers.MaxUint256));
+      const p2 = new ethers.Contract(CFG.v4.permit2, PERMIT2_ABI, s);
+      const [allowed, expiration] = await p2.allowance(account, c.coin, CFG.v4.universalRouter);
+      if (allowed < amt || Number(expiration) < now() + 600) await send("Allow trading", () => p2.approve(c.coin, CFG.v4.universalRouter, (1n << 160n) - 1n, now() + 30 * 86400));
+    }
+    const params = coder.encode([`tuple(${KEY_T},bool,uint128,uint128,bytes)`], [[keyOf(c.coin), buy, amt, minOut, "0x"]]);
+    const inCur = buy ? ethers.ZeroAddress : c.coin, outCur = buy ? c.coin : ethers.ZeroAddress;
+    const input = coder.encode(["bytes", "bytes[]"], ["0x060c0f", [params, coder.encode(["address", "uint256"], [inCur, amt]), coder.encode(["address", "uint256"], [outCur, minOut])]]);
+    const router = new ethers.Contract(CFG.v4.universalRouter, ROUTER_ABI, s);
+    await send(buy ? "Buy" : "Sell", () => router.execute("0x10", [input], now() + 900, { value: buy ? amt : 0n }));
+    $("amt").value = "";
+    await refresh();
+  } catch (e) { $("tradeErr").textContent = errMsg(e); }
+  finally { if ($("tradeBtn")) $("tradeBtn").disabled = false; }
+}
+
+route();
+})();
+</script>
+</body>
+</html>

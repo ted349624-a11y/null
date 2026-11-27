@@ -5,6 +5,10 @@
   "outputDirectory": "frontend",
   "rewrites": [
     {
+      "source": "/nft",
+      "destination": "/nft.html"
+    },
+    {
       "source": "/apply",
       "destination": "/apply.html"
     },

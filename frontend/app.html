@@ -119,8 +119,8 @@
   /* bottom nav on phones */
   #bnav { display:none; }
   @media(max-width:860px){
-    #bnav { display:grid; grid-template-columns:1fr 1.25fr 1fr 1fr; gap:8px; position:fixed; left:0; right:0; bottom:0; z-index:8; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:rgba(8,9,11,.94); backdrop-filter:blur(8px); border-top:1px solid var(--line); }
-    #bnav button { background:transparent; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:11px 4px; font-weight:600; }
+    #bnav { display:grid; grid-template-columns:1fr 1fr 1.25fr 1fr 1fr; gap:6px; position:fixed; left:0; right:0; bottom:0; z-index:8; padding:10px 12px calc(10px + env(safe-area-inset-bottom)); background:rgba(8,9,11,.94); backdrop-filter:blur(8px); border-top:1px solid var(--line); }
+    #bnav button { background:transparent; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:11px 2px; font-weight:600; font-size:13px; white-space:nowrap; }
     #bnav button.on { border-color:var(--acc); color:var(--acc); }
     #bnav button.go { background:var(--acc); color:var(--accTxt); border-color:var(--acc); font:800 14px ui-monospace, Menlo, monospace; letter-spacing:.08em; }
     body { padding-bottom:86px; } #openLaunch, #ptsBtn, #mineBtn { display:none !important; } #toast { bottom:96px; }
@@ -130,7 +130,7 @@
 <body>
 <header>
   <div class="logo" onclick="location.hash=''">null<b>_</b></div>
-  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="mineBtn" onclick="location.hash='mine'">My coins</button><button class="ghost sm" id="ptsBtn" style="display:none" onclick="location.hash='points'"></button><button class="ghost sm" id="openLaunch">+ Launch</button><div class="wallet"><button id="connect" class="sm">Connect wallet</button>
+  <div class="row"><span id="net" class="mut mono"></span><button class="ghost sm" id="adminBtn" style="display:none">Admin</button><button class="ghost sm" id="nftBtn" onclick="location.href='/nft'">NFTs</button><button class="ghost sm" id="mineBtn" onclick="location.hash='mine'">My coins</button><button class="ghost sm" id="ptsBtn" style="display:none" onclick="location.hash='points'"></button><button class="ghost sm" id="openLaunch">+ Launch</button><div class="wallet"><button id="connect" class="sm">Connect wallet</button>
     <div class="wmenu" id="wmenu"><button id="wCopy">Copy address</button><button id="wExplorer">View on explorer</button><button id="wDisconnect" class="danger">Disconnect</button></div></div></div>
 </header>
 
@@ -213,7 +213,7 @@
     <div class="row sp"><span class="mut" id="aFees"></span><button class="ghost sm" id="aWithdraw">Withdraw</button></div>
   </div>
 </div>
-<nav id="bnav"><button data-go="">coins</button><button class="go" id="bnLaunch">LAUNCH</button><button data-go="mine">my coins</button><button data-go="points">points</button></nav>
+<nav id="bnav"><button data-go="">coins</button><button id="bnNft" onclick="location.href='/nft'">nfts</button><button class="go" id="bnLaunch">LAUNCH</button><button data-go="mine">my coins</button><button data-go="points">points</button></nav>
 <div id="toast"></div>
 
 <script src="./ethers.umd.min.js"></script>

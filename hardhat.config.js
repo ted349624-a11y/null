@@ -22,6 +22,15 @@ module.exports = {
   etherscan: { apiKey: process.env.ETHERSCAN_API_KEY || "" },
   sourcify: { enabled: false },
   networks: {
+    // FORK_BASE_SEPOLIA=1: tests run against the real Uniswap v4 contracts on a local copy of Base Sepolia.
+    hardhat: process.env.FORK_BASE_SEPOLIA
+      ? {
+          hardfork: "cancun",
+          chainId: 84532,
+          forking: { url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org", blockNumber: Number(process.env.FORK_BLOCK) || undefined },
+          chains: { 84532: { hardforkHistory: { cancun: 0 } } },
+        }
+      : {},
     baseSepolia: {
       url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
       chainId: 84532,

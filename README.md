@@ -172,3 +172,25 @@ Price charts, comments, holder fee sharing, buyback & vest, cross-chain tokens v
 team's Google Form (`GFORM` and `ENTRY` at the top of the script in `frontend/apply.html`); nothing is stored
 on our side, and the answers are read in Google Forms / Sheets. If the form is replaced, take its
 "Get pre-filled link" and copy the form id and the two `entry.` numbers from it.
+
+## NFT ⇄ coin collections (`/nft`)
+
+Anyone can launch an NFT collection with its own coin (`contracts/nft/`). The creator picks the NFT supply and
+the coin supply; every NFT holds `coinSupply / nftSupply` coins.
+
+- **Mint** at a fixed price until the timer ends or the public share sells out (`publicCap`).
+- **Finalize** (the last mint does it automatically): NFTs worth 25% of the mint go into the vault, their coins and
+  the same share of the mint ETH open a plain Uniswap v4 pool (ETH/coin, 1% fee, full range) at the mint price.
+  The factory owns that position forever. 5% of the mint goes to the platform, the rest to the creator.
+- **NFT → coins**: `toCoins(ids)` puts the NFTs in the vault and mints their coins. **Coins → NFT**: `toNFTs(n)`
+  burns `n × perNFT` coins and hands out random NFTs from the vault. Coins in circulation always equal
+  `perNFT × vault size`.
+- **Trading fees** (1% LP fee): `collectFees(collection)` (anyone) pays half to the creator, half to the platform.
+- The art is drawn on-chain (`NullNFTArt`), and the page draws the same picture in the browser.
+- If someone initializes the pool early, `openPool` moves it back to the mint price first (nobody can hold
+  coins before the pool opens, so this never costs the collection).
+
+Tests run against the real Uniswap v4 on a local copy of Base Sepolia:
+`FORK_BASE_SEPOLIA=1 USE_LOCAL_SOLC=1 npx hardhat test test/NullNFT.fork.test.js`.
+Deploy: `PRIVATE_KEY=… NFT_OWNER=… NFT_FEE_RECIPIENT=… npx hardhat run scripts/deploy-nft.js --network baseSepolia`
+(writes `deployments/<network>-nft.json` and `frontend/nft-config.js`). Settings change with `setSettings` (owner).
