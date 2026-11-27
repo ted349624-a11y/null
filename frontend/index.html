@@ -713,7 +713,7 @@ function render() {
         <div class="card">
           <div class="row between wrap"><h1 style="font-size:28px">${esc(c.name)}</h1><div class="row" style="gap:6px">${officialTag(c.collection)}${badge}</div></div>
           <div class="mut small" style="margin-top:6px"><span class="mono">$${esc(c.symbol)}</span> · by <a href="${x}/address/${c.creator}" target="_blank" rel="noopener">${short(c.creator)}</a>
-          · <a href="${x}/address/${c.collection}" target="_blank" rel="noopener">NFT contract</a> · <a href="${x}/token/${c.coin}" target="_blank" rel="noopener">Coin</a></div>
+          · <a href="${x}/address/${c.collection}" target="_blank" rel="noopener">NFT contract</a> · <a href="${x}/address/${c.coin}" target="_blank" rel="noopener">Coin</a></div>
           <div class="small" style="margin-top:10px">Every NFT holds <b>${fmtUnits(c.perNFT)} ${esc(c.symbol)}</b>. Turn an NFT into its coins and trade them, or turn ${fmtUnits(c.perNFT)} ${esc(c.symbol)} back into a random NFT from the vault.</div>
         </div>
         ${st === "mint" ? mintPanel() : ""}
