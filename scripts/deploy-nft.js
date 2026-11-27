@@ -14,8 +14,20 @@ const path = require("path");
 
 // Uniswap v4, per chain (https://developers.uniswap.org/docs/protocols/v4/deployments).
 const V4 = {
+  4663: {
+    chainName: "Robinhood Chain",
+    testnet: false,
+    rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
+    explorer: "https://robinhoodchain.blockscout.com",
+    poolManager: "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+    universalRouter: "0x8876789976decbfcbbbe364623c63652db8c0904",
+    stateView: "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b",
+    quoter: "0x8dc178efb8111bb0973dd9d722ebeff267c98f94",
+    permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  },
   84532: {
     chainName: "Base Sepolia",
+    testnet: true,
     rpcUrl: "https://sepolia.base.org",
     explorer: "https://sepolia.basescan.org",
     poolManager: "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408",
@@ -31,6 +43,8 @@ async function main() {
   const chainId = Number((await ethers.provider.getNetwork()).chainId);
   const v4 = V4[chainId];
   if (!v4) throw new Error(`No Uniswap v4 addresses for chain ${chainId}`);
+  // real money: refuse unless asked explicitly (local copies of the chain are fine)
+  if (v4.testnet === false && !["hardhat", "localhost"].includes(network.name) && process.env.CONFIRM_MAINNET !== "1") throw new Error(`${v4.chainName} is mainnet: set CONFIRM_MAINNET=1`);
   const [deployer] = await ethers.getSigners();
   const signer = new ethers.NonceManager(deployer);
   const owner = process.env.NFT_OWNER || deployer.address;
@@ -79,6 +93,7 @@ async function main() {
   const cfg = {
     chainId,
     chainName: v4.chainName,
+    testnet: Boolean(v4.testnet),
     rpcUrl: process.env.NFT_PAGE_RPC || v4.rpcUrl,
     explorer: v4.explorer,
     factory: out.factory,

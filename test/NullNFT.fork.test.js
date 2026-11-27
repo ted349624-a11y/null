@@ -1,21 +1,29 @@
 // NFT <-> coin collections against the real Uniswap v4 on a local copy of Base Sepolia.
 // Run: FORK_BASE_SEPOLIA=1 USE_LOCAL_SOLC=1 npx hardhat test test/NullNFT.fork.test.js
+//  or: FORK_ROBINHOOD=1 USE_LOCAL_SOLC=1 npx hardhat test test/NullNFT.fork.test.js   (Robinhood Chain mainnet copy)
 const { expect } = require("chai");
 const { ethers, network } = require("hardhat");
 
-const V4 = {
-  poolManager: "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408",
-  universalRouter: "0x492E6456D9528771018DeB9E87ef7750EF184104",
-  stateView: "0x571291b572ed32ce6751a2Cb2486EbEe8DEfB9B4",
-  permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-};
+const V4 = process.env.FORK_ROBINHOOD
+  ? {
+      poolManager: "0x8366a39cc670b4001a1121b8f6a443a643e40951",
+      universalRouter: process.env.UR || "0x8876789976decbfcbbbe364623c63652db8c0904",
+      stateView: "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b",
+      permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    }
+  : {
+      poolManager: "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408",
+      universalRouter: "0x492E6456D9528771018DeB9E87ef7750EF184104",
+      stateView: "0x571291b572ed32ce6751a2Cb2486EbEe8DEfB9B4",
+      permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    };
 const E = (x) => ethers.parseEther(String(x));
 const coder = ethers.AbiCoder.defaultAbiCoder();
 const KEY_T = "tuple(address,address,uint24,int24,address)";
 
-const fork = process.env.FORK_BASE_SEPOLIA ? describe : describe.skip;
+const fork = process.env.FORK_BASE_SEPOLIA || process.env.FORK_ROBINHOOD ? describe : describe.skip;
 
-fork("null_ NFT collections (Base Sepolia fork, real Uniswap v4)", function () {
+fork(`null_ NFT collections (${process.env.FORK_ROBINHOOD ? "Robinhood Chain" : "Base Sepolia"} fork, real Uniswap v4)`, function () {
   this.timeout(900_000);
   let factory, owner, fees, creator, a, b, c, attacker, stateView, permit2, router;
   const LAUNCH_FEE = E("0.0005");

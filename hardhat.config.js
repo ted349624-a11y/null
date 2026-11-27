@@ -19,11 +19,25 @@ module.exports = {
     },
   },
   // Etherscan API V2: one key works for Basescan and every other Etherscan-family explorer.
-  etherscan: { apiKey: process.env.ETHERSCAN_API_KEY || "" },
+  // VERIFY_BLOCKSCOUT=1: verify on Robinhood Chain's Blockscout instead (it needs no key).
+  etherscan: process.env.VERIFY_BLOCKSCOUT
+    ? {
+        apiKey: { robinhood: "blockscout" },
+        customChains: [{ network: "robinhood", chainId: 4663, urls: { apiURL: "https://robinhoodchain.blockscout.com/api", browserURL: "https://robinhoodchain.blockscout.com" } }],
+      }
+    : { apiKey: process.env.ETHERSCAN_API_KEY || "" },
   sourcify: { enabled: false },
   networks: {
-    // FORK_BASE_SEPOLIA=1: tests run against the real Uniswap v4 contracts on a local copy of Base Sepolia.
-    hardhat: process.env.FORK_BASE_SEPOLIA
+    // FORK_BASE_SEPOLIA=1 / FORK_ROBINHOOD=1: tests run against the real Uniswap v4 contracts on a local copy
+    // of Base Sepolia / Robinhood Chain mainnet.
+    hardhat: process.env.FORK_ROBINHOOD
+      ? {
+          hardfork: "cancun",
+          chainId: 4663,
+          forking: { url: process.env.ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com", blockNumber: Number(process.env.FORK_BLOCK) || undefined },
+          chains: { 4663: { hardforkHistory: { cancun: 0 } } },
+        }
+      : process.env.FORK_BASE_SEPOLIA
       ? {
           hardfork: "cancun",
           chainId: 84532,
@@ -34,6 +48,12 @@ module.exports = {
     baseSepolia: {
       url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
       chainId: 84532,
+      accounts: PK,
+    },
+    // Robinhood Chain mainnet (Arbitrum Orbit). Native currency: ETH.
+    robinhood: {
+      url: process.env.ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com",
+      chainId: 4663,
       accounts: PK,
     },
     base: {

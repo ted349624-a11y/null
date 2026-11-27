@@ -145,7 +145,7 @@
       <button id="wCopy">Copy address</button><button id="wExplorer">View on explorer</button><button id="wDisconnect" class="danger">Disconnect</button>
     </div></div>
 </header>
-<div class="tbar">Testnet: runs on Base Sepolia with free test ETH. Get some: <a href="https://portal.cdp.coinbase.com/products/faucet" target="_blank" rel="noopener">Coinbase</a> · <a href="https://thirdweb.com/base-sepolia-testnet" target="_blank" rel="noopener">thirdweb</a> · <a href="https://tokentool.bitbond.com/faucet/base-sepolia" target="_blank" rel="noopener">Bitbond</a></div>
+<div class="tbar" id="tbar" hidden>Testnet: runs on Base Sepolia with free test ETH. Get some: <a href="https://portal.cdp.coinbase.com/products/faucet" target="_blank" rel="noopener">Coinbase</a> · <a href="https://thirdweb.com/base-sepolia-testnet" target="_blank" rel="noopener">thirdweb</a> · <a href="https://tokentool.bitbond.com/faucet/base-sepolia" target="_blank" rel="noopener">Bitbond</a></div>
 <main id="view"></main>
 <footer>
   <div class="links"><a href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a id="fCa" href="https://sepolia.basescan.org/address/0xC13F9c80bEEA3cbF9dED605789aF84eE4e5c5012#code" target="_blank" rel="noopener">Launchpad contract ✓ verified</a></div>
@@ -167,6 +167,10 @@ const toast = (m, ms = 3200) => { const t = $("toast"); t.textContent = m; t.cla
 
 if (!CFG || !CFG.factory) { $("view").innerHTML = '<div class="card empty">NFT launches are coming soon.</div>'; return; }
 $("net").textContent = CFG.chainName;
+// Testnet-only bits (the test ETH bar and faucet hints) disappear on mainnet.
+const TESTNET = CFG.testnet !== false;
+const GET_ETH = TESTNET ? "Get free test ETH from the links at the top." : `Add ETH on ${CFG.chainName} to your wallet.`;
+$("tbar").hidden = !TESTNET;
 if (CFG.explorer) $("fCa").href = `${CFG.explorer}/address/${CFG.factory}#code`; // follows the deployed factory
 
 // ---------------------------------------------------------------- contracts
@@ -241,8 +245,8 @@ function errMsg(e) {
   };
   if (map[name]) return map[name];
   if (e?.code === "ACTION_REJECTED" || e?.info?.error?.code === 4001) return "Rejected in wallet.";
-  if (e?.code === "INSUFFICIENT_FUNDS" || /insufficient funds/i.test(e?.message || "")) return `Not enough ${NET} for this (and gas). Get free test ETH from the links at the top.`;
-  if (/missing revert data/i.test(e?.shortMessage || e?.message || "")) return `The wallet could not send this. Make sure it is on ${CFG.chainName} and has some test ETH.`;
+  if (e?.code === "INSUFFICIENT_FUNDS" || /insufficient funds/i.test(e?.message || "")) return `Not enough ${NET} for this (and gas). ${GET_ETH}`;
+  if (/missing revert data/i.test(e?.shortMessage || e?.message || "")) return `The wallet could not send this. Make sure it is on ${CFG.chainName} and has some ${TESTNET ? "test " : ""}ETH.`;
   return e?.shortMessage || e?.reason || e?.message || String(e);
 }
 
@@ -272,7 +276,7 @@ function artUrl(seed, id, symbol) {
 let signer = null, account = null, wrongNet = false, ethBal = null;
 const DISC_KEY = "null_nft_disconnected";
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
-const NET = `${CFG.chainName} test ETH`;
+const NET = TESTNET ? `${CFG.chainName} test ETH` : `ETH on ${CFG.chainName}`;
 const walletChain = async () => parseInt(await window.ethereum.request({ method: "eth_chainId" }), 16);
 
 // The wallet must really be on our chain before anything is signed: some wallets ignore a switch request
@@ -358,7 +362,7 @@ if (store.get(DISC_KEY) !== "1") window.ethereum?.request?.({ method: "eth_accou
 // Gas use varies a little between the estimate and the real block (coins -> NFT picks a random vault slot),
 // so every transaction gets 25% (+20k) of headroom over the estimate.
 function lowFunds(bal, needed) {
-  return new Error(`Not enough ${NET}: you have ${fmtEth(bal)}, this needs about ${fmtEth(needed)} with gas. Get free test ETH from the links at the top of the page.`);
+  return new Error(`Not enough ${NET}: you have ${fmtEth(bal)}, this needs about ${fmtEth(needed)} with gas. ${GET_ETH}`);
 }
 async function call(contract, method, args = [], overrides = {}) {
   await ensureChain();
@@ -548,7 +552,7 @@ function feeLine() {
   let t = SETTINGS.launchFee > 0n ? `Launch fee: ${fmtEth(SETTINGS.launchFee)}` : "No launch fee.";
   if (account && ethBal !== null) {
     t += ` · You have ${fmtEth(ethBal)} on ${CFG.chainName}`;
-    if (ethBal < SETTINGS.launchFee + 10n ** 13n) t += ". Get free test ETH from the links at the top.";
+    if (ethBal < SETTINGS.launchFee + 10n ** 13n) t += ". " + GET_ETH;
   }
   el.textContent = t;
   el.style.color = account && ethBal !== null && ethBal < SETTINGS.launchFee + 10n ** 13n ? "var(--red)" : "";
@@ -972,7 +976,7 @@ async function trade() {
   try {
     const s = await need();
     btn.disabled = true;
-    if (buy ? amt > S.bal.eth : amt > S.bal.coin) throw new Error(buy ? `Not enough ${NET}: you have ${fmtEth(S.bal.eth)}. Get free test ETH from the links at the top.` : `Not enough ${c.symbol}.`);
+    if (buy ? amt > S.bal.eth : amt > S.bal.coin) throw new Error(buy ? `Not enough ${NET}: you have ${fmtEth(S.bal.eth)}. ${GET_ETH}` : `Not enough ${c.symbol}.`);
     const out = await getQuote(buy, amt);
     const minOut = (out * 97n) / 100n;
     if (!buy) {
