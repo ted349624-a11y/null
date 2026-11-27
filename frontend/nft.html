@@ -249,6 +249,12 @@ window.ethereum?.on?.("chainChanged", () => location.reload());
 // reconnect silently if the site is already allowed
 window.ethereum?.request?.({ method: "eth_accounts" }).then((a) => { if (a && a.length) connect().then(route).catch(() => {}); }).catch(() => {});
 
+// Gas use varies a little between the estimate and the real block (coins -> NFT picks a random vault slot),
+// so every transaction gets 25% (+20k) of headroom over the estimate.
+async function call(contract, method, args = [], overrides = {}) {
+  const est = await contract[method].estimateGas(...args, overrides);
+  return contract[method](...args, { ...overrides, gasLimit: (est * 125n) / 100n + 20000n });
+}
 async function send(label, fn) {
   const t = await fn();
   toast(`${label}: waiting for confirmation…`, 60000);
@@ -410,7 +416,7 @@ async function doLaunch() {
     const f = new ethers.Contract(CFG.factory, FACTORY_ABI, s);
     const fee = await factoryR.launchFee();
     const args = { ...p, coinSupply: BigInt(p.coinSupply) };
-    const rc = await send("Launch", () => f.createCollection(args, { value: fee }));
+    const rc = await send("Launch", () => call(f, "createCollection", [args], { value: fee }));
     const ev = rc.logs.map((l) => { try { return f.interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "CollectionCreated");
     LIST = null;
     location.hash = ev ? `c/${ev.args.collection}` : "";
@@ -584,12 +590,12 @@ function wire() {
     $("qty").oninput = upd; upd();
     $("mintBtn").onclick = async () => {
       const q = Number($("qty").value); $("mintErr").textContent = "";
-      try { await need(); $("mintBtn").disabled = true; await send("Mint", () => col().mint(q, { value: c.mintPrice * BigInt(q) })); await refresh(); }
+      try { await need(); $("mintBtn").disabled = true; await send("Mint", () => call(col(), "mint", [q], { value: c.mintPrice * BigInt(q) })); await refresh(); }
       catch (e) { $("mintErr").textContent = errMsg(e); $("mintBtn").disabled = false; }
     };
   }
   if ($("finBtn")) $("finBtn").onclick = async () => {
-    try { await need(); $("finBtn").disabled = true; await send("Open trading", () => col().finalize()); await refresh(); }
+    try { await need(); $("finBtn").disabled = true; await send("Open trading", () => call(col(), "finalize")); await refresh(); }
     catch (e) { $("finErr").textContent = errMsg(e); $("finBtn").disabled = false; }
   };
   // trade
@@ -609,7 +615,7 @@ function wire() {
   };
   if ($("selAll")) $("selAll").onclick = () => { if (S.sel.size === Math.min(S.my.length, 50)) S.sel.clear(); else S.sel = new Set(S.my.slice(0, 50)); render(); };
   if ($("toCoinsBtn")) $("toCoinsBtn").onclick = async () => {
-    try { await need(); $("toCoinsBtn").disabled = true; const ids = [...S.sel]; await send("NFT → coins", () => col().toCoins(ids)); S.sel.clear(); await refresh(); }
+    try { await need(); $("toCoinsBtn").disabled = true; const ids = [...S.sel]; await send("NFT → coins", () => call(col(), "toCoins", [ids])); S.sel.clear(); await refresh(); }
     catch (e) { $("convErr").textContent = errMsg(e); $("toCoinsBtn").disabled = false; }
   };
   if ($("toNftsBtn")) {
@@ -627,7 +633,7 @@ function wire() {
       const n = Number($("nBack").value);
       try {
         await need(); $("toNftsBtn").disabled = true;
-        const rc = await send("Coins → NFT", () => col().toNFTs(n));
+        const rc = await send("Coins → NFT", () => call(col(), "toNFTs", [n]));
         const ev = rc.logs.map((l) => { try { return col().interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "ToNFTs");
         await refresh();
         if (ev) $("gotNfts").innerHTML = `<div class="small ok" style="margin-top:10px">You got:</div><div class="got">${ev.args.ids.map((id) => `<img alt="#${id}" title="#${id}" src="${artUrl(c.seed, Number(id), c.symbol)}">`).join("")}</div>`;
@@ -635,7 +641,7 @@ function wire() {
     };
   }
   if ($("feesBtn")) $("feesBtn").onclick = async () => {
-    try { const s = await need(); $("feesBtn").disabled = true; await send("Fees paid out", () => new ethers.Contract(CFG.factory, FACTORY_ABI, s).collectFees(S.addr)); await refresh(); }
+    try { const s = await need(); $("feesBtn").disabled = true; await send("Fees paid out", () => call(new ethers.Contract(CFG.factory, FACTORY_ABI, s), "collectFees", [S.addr])); await refresh(); }
     catch (e) { $("feesErr").textContent = errMsg(e); $("feesBtn").disabled = false; }
   };
 }
@@ -673,16 +679,16 @@ async function trade() {
     const minOut = (out * 97n) / 100n;
     if (!buy) {
       const coin = new ethers.Contract(c.coin, COIN_ABI, s);
-      if ((await coin.allowance(account, CFG.v4.permit2)) < amt) await send("Approve", () => coin.approve(CFG.v4.permit2, ethers.MaxUint256));
+      if ((await coin.allowance(account, CFG.v4.permit2)) < amt) await send("Approve", () => call(coin, "approve", [CFG.v4.permit2, ethers.MaxUint256]));
       const p2 = new ethers.Contract(CFG.v4.permit2, PERMIT2_ABI, s);
       const [allowed, expiration] = await p2.allowance(account, c.coin, CFG.v4.universalRouter);
-      if (allowed < amt || Number(expiration) < now() + 600) await send("Allow trading", () => p2.approve(c.coin, CFG.v4.universalRouter, (1n << 160n) - 1n, now() + 30 * 86400));
+      if (allowed < amt || Number(expiration) < now() + 600) await send("Allow trading", () => call(p2, "approve", [c.coin, CFG.v4.universalRouter, (1n << 160n) - 1n, now() + 30 * 86400]));
     }
     const params = coder.encode([`tuple(${KEY_T},bool,uint128,uint128,bytes)`], [[keyOf(c.coin), buy, amt, minOut, "0x"]]);
     const inCur = buy ? ethers.ZeroAddress : c.coin, outCur = buy ? c.coin : ethers.ZeroAddress;
     const input = coder.encode(["bytes", "bytes[]"], ["0x060c0f", [params, coder.encode(["address", "uint256"], [inCur, amt]), coder.encode(["address", "uint256"], [outCur, minOut])]]);
     const router = new ethers.Contract(CFG.v4.universalRouter, ROUTER_ABI, s);
-    await send(buy ? "Buy" : "Sell", () => router.execute("0x10", [input], now() + 900, { value: buy ? amt : 0n }));
+    await send(buy ? "Buy" : "Sell", () => call(router, "execute", ["0x10", [input], now() + 900], { value: buy ? amt : 0n }));
     $("amt").value = "";
     await refresh();
   } catch (e) { $("tradeErr").textContent = errMsg(e); }
