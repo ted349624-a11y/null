@@ -718,11 +718,21 @@ function render() {
         </div>
         ${st === "mint" ? mintPanel() : ""}
         ${st === "closing" ? closePanel() : ""}
+        ${st === "mint" || st === "closing" ? payoutPanel() : ""}
         ${st === "trade" ? buyPanel() + tradePanel() + convertPanel() + feesPanel() : ""}
         ${st === "ended" ? '<div class="card mut">This mint ended with no NFTs sold.</div>' : ""}
       </section>
     </div>`;
   wire();
+}
+// Where the mint money goes. Nothing is paid until the mint closes: on the last sale, or when the timer ends and someone opens trading.
+function payoutPanel() {
+  const c = S.info, cap = c.publicCap, k = c.nftSupply - cap, rev = cap * c.mintPrice;
+  const fee = rev * c.mintFeeBps / 10000n, pool = k * c.mintPrice > rev - fee ? rev - fee : k * c.mintPrice, creator = rev - fee - pool;
+  return `<div class="card"><h2>When do mint payouts happen?</h2>
+    <div class="small" style="margin-top:6px">The mint money stays locked in the NFT contract until the mint closes. Nobody can take it out early.</div>
+    <div class="small" style="margin-top:8px"><b>Sells out:</b> the last mint opens the Uniswap pool and pays everyone in the same transaction.<br><b>Timer ends:</b> anyone can press "Open trading" (it costs only gas); the pool opens and payouts go out.</div>
+    <div class="small" style="margin-top:8px">If all ${cap} NFTs sell (${fmtEth(rev)}): <b>${fmtEth(fee)}</b> (${Number(c.mintFeeBps) / 100}%) to null_, <b>${fmtEth(pool)}</b> into the pool with ${k} NFTs' coins, <b>${fmtEth(creator)}</b> to the creator.</div></div>`;
 }
 function mintLeft() {
   const c = S.info;
