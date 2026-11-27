@@ -541,10 +541,10 @@ async function doLaunch() {
 }
 
 // ---------------------------------------------------------------- collection
-const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { eth: 0n, coin: 0n }, price: null, pending: null };
+const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { eth: 0n, coin: 0n }, price: null, pending: null, nftSell: null };
 async function viewCollection(addr) {
   addr = ethers.getAddress(addr);
-  if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null });
+  if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null, nftSell: null });
   $("view").innerHTML = `<a class="back" href="#">← All collections</a><div id="colBody"><div class="card empty">Loading…</div></div>`;
   await refresh();
   timer = setInterval(() => refresh(true), 15000);
@@ -565,6 +565,7 @@ async function refresh(quiet) {
   if (c.finalized && c.minted > 0n) {
     tasks.push(new ethers.Contract(CFG.v4.stateView, STATEVIEW_ABI, rp).getSlot0(poolIdOf(c.coin)).then(([sp]) => { S.price = sp; }).catch(() => {}));
     tasks.push(factoryR.collectFees.staticCall(S.addr).then(([e, k]) => (S.pending = { eth: e, coins: k })).catch(() => (S.pending = null)));
+    tasks.push(new ethers.Contract(CFG.v4.quoter, QUOTER_ABI, rp).quoteExactInputSingle.staticCall([keyOf(c.coin), false, c.perNFT, "0x"]).then(([out]) => (S.nftSell = out)).catch(() => (S.nftSell = null)));
   }
   await Promise.all(tasks.map((t) => t.catch(() => {})));
   if (!document.getElementById("colBody")) return;
@@ -587,11 +588,12 @@ function renderStatsOnly() {
   const el = $("stats"); if (el) el.innerHTML = statsHtml();
 }
 function statsHtml() {
-  const c = S.info, v = nftValue();
+  const c = S.info;
   const cells = [
     ["Mint price", fmtEth(c.mintPrice)],
     ["Each NFT holds", `${fmtUnits(c.perNFT)} ${esc(c.symbol)}`],
-    c.finalized ? ["NFT value in the pool", v === null ? "—" : `${v < 0.000001 ? v.toExponential(2) : v.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")} ETH`] : ["Minted", `${c.minted} / ${c.publicCap}`],
+    // what you would really get for one NFT's coins now (price impact included), not spot price x coins
+    c.finalized ? ["1 NFT's coins sell for", S.nftSell === null ? "—" : fmtEth(S.nftSell, 8)] : ["Minted", `${c.minted} / ${c.publicCap}`],
     c.finalized ? ["NFTs / in vault", `${c.totalNFTs} / ${c.vaultSize}`] : ["Mint ends", Number(c.mintEnd) > now() ? `in ${timeLeft(Number(c.mintEnd) - now())}` : "ended"],
   ];
   return cells.map(([k, val]) => `<div class="stat"><div class="k">${k}</div><div class="v">${val}</div></div>`).join("");
