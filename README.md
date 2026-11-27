@@ -175,8 +175,9 @@ on our side, and the answers are read in Google Forms / Sheets. If the form is r
 
 ## NFT ⇄ coin collections (the homepage)
 
-nullfamily.fun serves only the NFT launchpad (`frontend/index.html`). `vercel.json` keeps just `/`, `index.html`,
-`ethers.umd.min.js` and `nft-config.js` reachable; every other path (the old coin app, quests, `/apply`, the old API)
+nullfamily.fun serves only the NFT launchpad (`frontend/index.html`, pages `/`, `/launch`, `/c/<collection>`; old
+`#launch` / `#c/…` links are moved to these). `vercel.json` keeps just those, `index.html`, `ethers.umd.min.js` and
+`nft-config.js` reachable; every other path (the old coin app, quests, `/apply`, the old API)
 redirects to `/`, and `testnet.nullfamily.fun` redirects to nullfamily.fun. The files are still in the repo: to bring a
 page back, add it to the allow-list in the second redirect. Points are closed (`pointsOpen: false` in
 `lib/quest-config.js`; stored points stay; env `POINTS_OPEN=1` reopens).

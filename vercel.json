@@ -16,9 +16,19 @@
       "permanent": false
     },
     {
-      "source": "/:path((?!ethers\\.umd\\.min\\.js$|nft-config\\.js$|index\\.html$).+)",
+      "source": "/:path((?!ethers\\.umd\\.min\\.js$|nft-config\\.js$|index\\.html$|launch$|c/0x[0-9a-fA-F]{40}$).+)",
       "destination": "/",
       "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/launch",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/c/:addr",
+      "destination": "/index.html"
     }
   ],
   "functions": {

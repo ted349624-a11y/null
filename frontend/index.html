@@ -128,10 +128,10 @@
 </head>
 <body>
 <header>
-  <a class="logo" href="/#">null<b>_</b></a>
+  <a class="logo" href="/">null<b>_</b></a>
   <div class="sp"></div>
   <span class="net" id="net"></span>
-  <a class="btn ghost sm" href="#launch">+ Launch</a>
+  <a class="btn ghost sm" href="/launch">+ Launch</a>
   <div class="wallet"><button class="sm" id="connect">Connect wallet</button>
     <div class="wmenu" id="wmenu">
       <div class="who"><div class="a" id="wAddr"></div><div class="b mut" id="wBal"></div></div>
@@ -146,8 +146,8 @@
 </footer>
 <div id="toast"></div>
 
-<script src="./ethers.umd.min.js"></script>
-<script src="./nft-config.js"></script>
+<script src="/ethers.umd.min.js"></script>
+<script src="/nft-config.js"></script>
 <script>
 (() => {
 "use strict";
@@ -170,7 +170,7 @@ const FACTORY_ABI = [
   "function launchFee() view returns (uint256)", "function mintFeeBps() view returns (uint16)", "function lpBps() view returns (uint16)", "function creatorFeeBps() view returns (uint16)",
   "function collectionsCount() view returns (uint256)", `function latest(uint256 start, uint256 count) view returns (${INFO_T}[])`,
   "function collectFees(address collection) returns (uint256 eth, uint256 coins)", "function liquidityOf(address) view returns (uint128)", "function creatorFeeBpsOf(address) view returns (uint16)",
-  "function feeOf(address coin) view returns (uint24)", "function poolFee() view returns (uint24)", "function owner() view returns (address)", "function feeRecipient() view returns (address)",
+  "function feeOf(address coin) view returns (uint24)", "function isCollection(address) view returns (bool)", "function poolFee() view returns (uint24)", "function owner() view returns (address)", "function feeRecipient() view returns (address)",
   "function setSettings(address feeRecipient_, uint256 launchFee_, uint16 mintFeeBps_, uint16 lpBps_, uint16 creatorFeeBps_, uint24 poolFee_)", "error BadSetting()", "error OwnableUnauthorizedAccount(address)",
   "function owed(address) view returns (uint256)", "function withdrawOwed()",
   "event CollectionCreated(address indexed collection, address indexed coin, address indexed creator, string name, string symbol, uint256 nftSupply, uint256 coinSupply, uint256 mintPrice, uint256 mintEnd)",
@@ -287,7 +287,7 @@ async function ensureChain() {
 }
 async function connect() {
   if (!window.ethereum) {
-    location.href = "https://metamask.app.link/dapp/" + location.host + location.pathname + location.hash;
+    location.href = "https://metamask.app.link/dapp/" + location.host + location.pathname;
     return;
   }
   const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
@@ -382,15 +382,31 @@ async function send(label, fn) {
 
 // ---------------------------------------------------------------- router
 let timer = null;
+// Clean addresses: /, /launch, /c/0x… (old #launch and #c/0x… links are moved over to them).
 function route() {
   clearInterval(timer);
-  const h = location.hash.replace(/^#\/?/, "");
-  if (h === "launch") return viewLaunch();
-  const m = /^c\/(0x[0-9a-fA-F]{40})$/.exec(h);
+  const old = location.hash.replace(/^#\/?/, "");
+  if (old === "launch" || /^c\/0x[0-9a-fA-F]{40}$/.test(old)) history.replaceState(null, "", "/" + old);
+  else if (location.hash) history.replaceState(null, "", location.pathname);
+  const path = location.pathname.replace(/\/+$/, "");
+  if (path === "/launch") return viewLaunch();
+  const m = /^\/c\/(0x[0-9a-fA-F]{40})$/.exec(path);
   if (m) return viewCollection(m[1]);
   return viewList();
 }
-window.addEventListener("hashchange", route);
+function go(path) {
+  if (path !== location.pathname) history.pushState(null, "", path);
+  route();
+  window.scrollTo(0, 0);
+}
+window.addEventListener("popstate", route);
+// Internal links switch pages without a reload
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[href]");
+  if (!a || a.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  const href = a.getAttribute("href");
+  if (href === "/" || href === "/launch" || /^\/c\/0x[0-9a-fA-F]{40}$/.test(href)) { e.preventDefault(); go(href); }
+});
 
 // ---------------------------------------------------------------- list
 let LIST = null, TAB = "all";
@@ -403,7 +419,7 @@ async function viewList() {
         <p>Launch a collection and pick how many coins it has. Every NFT holds an equal share of them. Holders can turn an NFT into its coins and trade them on Uniswap, or collect coins and turn them back into an NFT.</p>
         <div class="steps"><span>1 · Mint NFTs</span><span>2 · Pool opens on Uniswap</span><span>3 · NFT ⇄ coins any time</span></div>
       </div>
-      <a class="btn" href="#launch">Launch a collection</a>
+      <a class="btn" href="/launch">Launch a collection</a>
     </section>
     <div id="admin"></div>
     <div class="tabs" id="tabs">
@@ -464,11 +480,11 @@ function status(c) {
 function renderGrid() {
   const g = $("grid"); if (!g) return;
   const items = LIST.filter((c) => TAB === "all" || (TAB === "mint" ? ["mint", "closing"].includes(status(c)) : status(c) === "trade"));
-  if (!items.length) { g.innerHTML = `<div class="card empty">${LIST.length ? "Nothing here right now." : 'No collections yet. <a href="#launch">Launch the first one →</a>'}</div>`; return; }
+  if (!items.length) { g.innerHTML = `<div class="card empty">${LIST.length ? "Nothing here right now." : 'No collections yet. <a href="/launch">Launch the first one →</a>'}</div>`; return; }
   g.innerHTML = `<div class="grid">${items.map((c) => {
     const st = status(c), pct = c.publicCap > 0n ? Number((c.minted * 1000n) / c.publicCap) / 10 : 0;
     const badge = st === "mint" ? `<span class="badge">Minting · ${timeLeft(Number(c.mintEnd) - now())}</span>` : st === "trade" ? '<span class="badge trade">Trading</span>' : st === "closing" ? '<span class="badge mutd">Opening soon</span>' : '<span class="badge mutd">Ended</span>';
-    return `<a class="tile" href="#c/${c.collection}"><img alt="" src="${artUrl(c.seed, 0, c.symbol)}"><div class="b">
+    return `<a class="tile" href="/c/${c.collection}"><img alt="" src="${artUrl(c.seed, 0, c.symbol)}"><div class="b">
       <div class="row between"><div class="nm">${esc(c.name)}</div></div>
       <div class="row between small" style="margin-top:2px"><span class="mut mono">$${esc(c.symbol)}</span>${badge}</div>
       <div class="small" style="margin-top:8px">${fmtEth(c.mintPrice)} <span class="mut">· holds ${fmtUnits(c.perNFT)}</span></div>
@@ -487,7 +503,7 @@ async function loadSettings() {
 async function viewLaunch() {
   document.title = "Launch a collection — null_";
   $("view").innerHTML = `
-    <a class="back" href="#">← All collections</a>
+    <a class="back" href="/">← All collections</a>
     <div class="two">
       <section class="card">
         <h2>Launch an NFT collection</h2>
@@ -593,7 +609,7 @@ async function doLaunch() {
     const rc = await send("Launch", () => call(f, "createCollection", [args], { value: fee }));
     const ev = rc.logs.map((l) => { try { return f.interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "CollectionCreated");
     LIST = null;
-    location.hash = ev ? `c/${ev.args.collection}` : "";
+    go(ev ? `/c/${ev.args.collection}` : "/");
   } catch (e) {
     $("fErr").textContent = errMsg(e);
   } finally { btn.disabled = false; btn.textContent = "Launch collection"; }
@@ -604,12 +620,16 @@ const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { 
 async function viewCollection(addr) {
   addr = ethers.getAddress(addr);
   if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null, nftSell: null, poolCoins: null, buyN: 1, creatorBps: null });
-  $("view").innerHTML = `<a class="back" href="#">← All collections</a><div id="colBody"><div class="card empty">Loading…</div></div>`;
+  $("view").innerHTML = `<a class="back" href="/">← All collections</a><div id="colBody"><div class="card empty">Loading…</div></div>`;
   await refresh();
   timer = setInterval(() => refresh(true), 15000);
 }
+const KNOWN = new Map(); // address -> launched by our factory?
 async function refresh(quiet) {
   const col = new ethers.Contract(S.addr, COLLECTION_ABI, rp);
+  // Only collections launched by our factory are shown: any other contract could imitate the page.
+  if (!KNOWN.has(S.addr)) { try { KNOWN.set(S.addr, await factoryR.isCollection(S.addr)); } catch (e) { if (!quiet) $("colBody").innerHTML = `<div class="card empty">Couldn't load this collection. ${esc(errMsg(e))}</div>`; return; } }
+  if (!KNOWN.get(S.addr)) { clearInterval(timer); document.title = "null_ — NFTs with their own coin"; $("colBody").innerHTML = '<div class="card empty">This isn\'t a null_ collection. <a href="/">See all collections →</a></div>'; return; }
   try {
     [S.info] = await Promise.all([col.info(), syncClock()]);
   } catch (e) { if (!quiet) $("colBody").innerHTML = `<div class="card empty">Couldn't load this collection. ${esc(errMsg(e))}</div>`; return; }
