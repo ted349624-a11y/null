@@ -15,8 +15,24 @@ const rewrites = (JSON.parse(fs.readFileSync(path.join(__dirname, "../vercel.jso
   .filter((r) => !r.has && r.source !== "/")
   .map((r) => ({ re: new RegExp("^" + r.source.replace(/:[a-z]+/gi, "[^/]+") + "$"), dest: r.destination }));
 
+// ":name*" -> any rest, ":name(regex)" -> (regex), ":name" -> one segment
+function sourceRegex(src) {
+  let out = "", i = 0;
+  while (i < src.length) {
+    const m = /^:(\w+)/.exec(src.slice(i));
+    if (!m) { out += src[i].replace(/[.+?^${}|[\]\\]/g, "\\$&"); i++; continue; }
+    i += m[0].length;
+    if (src[i] === "*") { out = out.replace(/\/$/, "") + "(?:/(.*))?"; i++; }
+    else if (src[i] === "(") {
+      let depth = 0, j = i;
+      for (; j < src.length; j++) { if (src[j] === "(" && src[j - 1] !== "\\") depth++; else if (src[j] === ")" && src[j - 1] !== "\\") { depth--; if (!depth) break; } }
+      out += "(" + src.slice(i + 1, j) + ")"; i = j + 1;
+    } else out += "([^/]+)";
+  }
+  return new RegExp("^" + out + "$");
+}
 const redirects = (JSON.parse(fs.readFileSync(path.join(__dirname, "../vercel.json"), "utf8")).redirects || []).map((r) => ({
-  re: new RegExp("^" + r.source.replace("/:path*", "(?:/(.*))?").replace(/:[a-z]+/gi, "[^/]+") + "$"),
+  re: sourceRegex(r.source),
   host: (r.has || []).find((h) => h.type === "host")?.value?.replace(/\.nullfamily\.fun$/, "."),
   dest: r.destination,
 }));

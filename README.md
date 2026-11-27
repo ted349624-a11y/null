@@ -175,9 +175,11 @@ on our side, and the answers are read in Google Forms / Sheets. If the form is r
 
 ## NFT ⇄ coin collections (the homepage)
 
-nullfamily.fun now serves only the NFT launchpad (`frontend/index.html`). The old coin launchpad (`app.html`) and the
-X quests page (`quests.html`) redirect to `/`, `testnet.nullfamily.fun` redirects to nullfamily.fun, and points are
-closed (`pointsOpen: false` in `lib/quest-config.js`; stored points stay; env `POINTS_OPEN=1` reopens). `/apply` stays.
+nullfamily.fun serves only the NFT launchpad (`frontend/index.html`). `vercel.json` keeps just `/`, `index.html`,
+`ethers.umd.min.js` and `nft-config.js` reachable; every other path (the old coin app, quests, `/apply`, the old API)
+redirects to `/`, and `testnet.nullfamily.fun` redirects to nullfamily.fun. The files are still in the repo: to bring a
+page back, add it to the allow-list in the second redirect. Points are closed (`pointsOpen: false` in
+`lib/quest-config.js`; stored points stay; env `POINTS_OPEN=1` reopens).
 
 Anyone can launch an NFT collection with its own coin (`contracts/nft/`). The creator picks the NFT supply and
 the coin supply; every NFT holds `coinSupply / nftSupply` coins.

@@ -12,47 +12,13 @@
           "value": "testnet.nullfamily.fun"
         }
       ],
-      "destination": "https://nullfamily.fun/:path*",
+      "destination": "https://nullfamily.fun/",
       "permanent": false
     },
     {
-      "source": "/nft",
+      "source": "/:path((?!ethers\\.umd\\.min\\.js$|nft-config\\.js$|index\\.html$).+)",
       "destination": "/",
       "permanent": false
-    },
-    {
-      "source": "/nft.html",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/app.html",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/quests",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/quests.html",
-      "destination": "/",
-      "permanent": false
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/apply",
-      "destination": "/apply.html"
-    },
-    {
-      "source": "/api/index-status/:n",
-      "destination": "/api/history?status=1"
-    },
-    {
-      "source": "/api/stats-check/:n",
-      "destination": "/api/stats"
     }
   ],
   "functions": {
