@@ -141,7 +141,7 @@
 <div class="tbar">Testnet: runs on Base Sepolia with free test ETH. Get some: <a href="https://portal.cdp.coinbase.com/products/faucet" target="_blank" rel="noopener">Coinbase</a> · <a href="https://thirdweb.com/base-sepolia-testnet" target="_blank" rel="noopener">thirdweb</a> · <a href="https://tokentool.bitbond.com/faucet/base-sepolia" target="_blank" rel="noopener">Bitbond</a></div>
 <main id="view"></main>
 <footer>
-  <div class="links"><a href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a id="fCa" href="https://sepolia.basescan.org/address/0x548CAaAC510dEfaBa30D2A0AeFee59846a70376E#code" target="_blank" rel="noopener">Launchpad contract ✓ verified</a></div>
+  <div class="links"><a href="https://x.com/nullfamily" target="_blank" rel="noopener">X @nullfamily</a><a id="fCa" href="https://sepolia.basescan.org/address/0x22aF309e7DD233F6b8aA06f02D2b7146210D62E6#code" target="_blank" rel="noopener">Launchpad contract ✓ verified</a></div>
   <div>null<span style="color:var(--acc)">_</span> · NFTs with their own coin</div>
 </footer>
 <div id="toast"></div>
@@ -170,6 +170,8 @@ const FACTORY_ABI = [
   "function launchFee() view returns (uint256)", "function mintFeeBps() view returns (uint16)", "function lpBps() view returns (uint16)", "function creatorFeeBps() view returns (uint16)",
   "function collectionsCount() view returns (uint256)", `function latest(uint256 start, uint256 count) view returns (${INFO_T}[])`,
   "function collectFees(address collection) returns (uint256 eth, uint256 coins)", "function liquidityOf(address) view returns (uint128)", "function creatorFeeBpsOf(address) view returns (uint16)",
+  "function feeOf(address coin) view returns (uint24)", "function poolFee() view returns (uint24)", "function owner() view returns (address)", "function feeRecipient() view returns (address)",
+  "function setSettings(address feeRecipient_, uint256 launchFee_, uint16 mintFeeBps_, uint16 lpBps_, uint16 creatorFeeBps_, uint24 poolFee_)", "error BadSetting()", "error OwnableUnauthorizedAccount(address)",
   "function owed(address) view returns (uint256)", "function withdrawOwed()",
   "event CollectionCreated(address indexed collection, address indexed coin, address indexed creator, string name, string symbol, uint256 nftSupply, uint256 coinSupply, uint256 mintPrice, uint256 mintEnd)",
   ...ERRORS,
@@ -192,7 +194,9 @@ const STATEVIEW_ABI = ["function getSlot0(bytes32) view returns (uint160 sqrtPri
 const rp = new ethers.JsonRpcProvider(CFG.rpcUrl, CFG.chainId, { staticNetwork: true, batchMaxCount: 1 });
 const factoryR = new ethers.Contract(CFG.factory, FACTORY_ABI, rp);
 const coder = ethers.AbiCoder.defaultAbiCoder();
-const keyOf = (coin) => [ethers.ZeroAddress, coin, 10000, 200, ethers.ZeroAddress];
+const COINFEE = new Map(); // coin -> its pool fee (hundredths of a bip), fixed at launch
+const keyOf = (coin) => [ethers.ZeroAddress, coin, COINFEE.get(coin) ?? 30000, 200, ethers.ZeroAddress];
+const pct = (x) => (Math.round(x * 100) / 100).toString(); // 0.9999 -> "1"
 const poolIdOf = (coin) => ethers.keccak256(coder.encode(["address", "address", "uint24", "int24", "address"], keyOf(coin)));
 
 // ---------------------------------------------------------------- formatting
@@ -226,7 +230,7 @@ function errMsg(e) {
     BadPrice: "Mint price must be between 0.000000001 and 100 ETH.", BadDuration: "Mint duration must be between 5 minutes and 30 days.", BadWalletLimit: "The wallet limit can't be more than the NFT supply.",
     MintClosed: "The mint has ended.", BadQuantity: "Pick a smaller amount (up to 20 per mint, 50 per conversion).", WrongValue: "Wrong amount of ETH.", SoldOut: "Not that many NFTs left.",
     WalletLimit: "That would go over the per-wallet limit.", AlreadyFinalized: "Trading is already open.", MintRunning: "The mint is still running.", NotOpen: "Conversions open when trading opens.",
-    NotOwner: "You don't own that NFT.", VaultTooSmall: "Not enough NFTs in the vault right now.", NoPool: "No pool yet.", NothingOwed: "Nothing to withdraw.",
+    NotOwner: "You don't own that NFT.", BadSetting: "One of the settings is out of range.", OwnableUnauthorizedAccount: "Only the owner wallet can change settings.", VaultTooSmall: "Not enough NFTs in the vault right now.", NoPool: "No pool yet.", NothingOwed: "Nothing to withdraw.",
   };
   if (map[name]) return map[name];
   if (e?.code === "ACTION_REJECTED" || e?.info?.error?.code === 4001) return "Rejected in wallet.";
@@ -401,14 +405,56 @@ async function viewList() {
       </div>
       <a class="btn" href="#launch">Launch a collection</a>
     </section>
+    <div id="admin"></div>
     <div class="tabs" id="tabs">
       <button data-t="all">All</button><button data-t="mint">Minting now</button><button data-t="trade">Trading</button>
     </div>
     <div id="grid"><div class="card empty">Loading…</div></div>`;
   document.querySelectorAll("#tabs button").forEach((b) => { b.classList.toggle("on", b.dataset.t === TAB); b.onclick = () => { TAB = b.dataset.t; viewList(); }; });
+  renderAdmin();
   try { [LIST] = await Promise.all([factoryR.latest(0, 60), syncClock()]); } catch (e) { $("grid").innerHTML = `<div class="card empty">Couldn't load collections. ${esc(errMsg(e))}</div>`; return; }
   renderGrid();
   timer = setInterval(() => factoryR.latest(0, 60).then((l) => { LIST = l; renderGrid(); }).catch(() => {}), 20000);
+}
+// Platform settings: shown only to the factory owner's wallet. They apply to collections launched afterwards.
+async function renderAdmin() {
+  const el = $("admin"); if (!el) return;
+  if (!account) { el.innerHTML = ""; return; }
+  try { await loadSettings(); } catch { return; }
+  if (account !== SETTINGS.owner || !$("admin")) { el.innerHTML = ""; return; }
+  const st = SETTINGS, trade = st.poolFee / 10000;
+  el.innerHTML = `<section class="card" style="margin-bottom:18px">
+    <div class="row between"><h2>Platform settings</h2><span class="badge mutd">Owner only</span></div>
+    <div class="mut small">Changes apply to collections launched after you save. The fee recipient changes for all.</div>
+    <div class="fields2">
+      <div style="grid-column:1/-1"><label for="aRec">Fee recipient</label><input id="aRec" value="${esc(st.feeRecipient)}" autocomplete="off"></div>
+      <div><label for="aLaunch">Launch fee (ETH)</label><input id="aLaunch" inputmode="decimal" value="${ethers.formatEther(st.launchFee)}"></div>
+      <div><label for="aMint">Mint fee (%)</label><input id="aMint" inputmode="decimal" value="${pct(st.mintFeeBps / 100)}"></div>
+      <div><label for="aPool">Mint share into the pool (%)</label><input id="aPool" inputmode="decimal" value="${pct(st.lpBps / 100)}"></div>
+      <div><label for="aTrade">Trading fee (%)</label><input id="aTrade" inputmode="decimal" value="${pct(trade)}"></div>
+      <div><label for="aCreator">Creator's part of it (%)</label><input id="aCreator" inputmode="decimal" value="${pct(trade * st.creatorFeeBps / 10000)}"></div>
+    </div>
+    <div class="err" id="aErr"></div>
+    <button class="wide" id="aSave" style="margin-top:14px">Save settings</button>
+  </section>`;
+  $("aSave").onclick = async () => {
+    $("aErr").textContent = "";
+    try {
+      const rec = $("aRec").value.trim(), mint = Number($("aMint").value), pool = Number($("aPool").value), tr = Number($("aTrade").value), cr = Number($("aCreator").value);
+      if (!ethers.isAddress(rec)) throw new Error("Fee recipient must be an address.");
+      let lf; try { lf = ethers.parseEther($("aLaunch").value.trim() || "0"); } catch { throw new Error("Launch fee must be a number of ETH."); }
+      if (!(mint >= 0 && mint <= 20)) throw new Error("Mint fee must be 0 to 20%.");
+      if (!(pool >= 5 && pool <= 50)) throw new Error("Mint share into the pool must be 5 to 50%.");
+      if (!(tr >= 0.01 && tr <= 10)) throw new Error("Trading fee must be 0.01 to 10%.");
+      if (!(cr >= 0 && cr <= tr)) throw new Error("The creator's part can't be more than the trading fee.");
+      const s = await need();
+      $("aSave").disabled = true;
+      const args = [rec, lf, Math.round(mint * 100), Math.round(pool * 100), Math.round((cr / tr) * 10000), Math.round(tr * 10000)];
+      await send("Settings saved", () => call(new ethers.Contract(CFG.factory, FACTORY_ABI, s), "setSettings", args));
+      SETTINGS = null; renderAdmin();
+    } catch (e) { $("aErr").textContent = errMsg(e); }
+    finally { if ($("aSave")) $("aSave").disabled = false; }
+  };
 }
 function status(c) {
   if (c.finalized) return c.minted > 0n ? "trade" : "ended";
@@ -433,6 +479,11 @@ function renderGrid() {
 
 // ---------------------------------------------------------------- launch
 let SETTINGS = null;
+async function loadSettings() {
+  const [launchFee, mintFeeBps, lpBps, creatorFeeBps, poolFee, owner, feeRecipient] = await Promise.all([factoryR.launchFee(), factoryR.mintFeeBps(), factoryR.lpBps(), factoryR.creatorFeeBps(), factoryR.poolFee(), factoryR.owner(), factoryR.feeRecipient()]);
+  SETTINGS = { launchFee, mintFeeBps: Number(mintFeeBps), lpBps: Number(lpBps), creatorFeeBps: Number(creatorFeeBps), poolFee: Number(poolFee), owner: owner.toLowerCase(), feeRecipient };
+  return SETTINGS;
+}
 async function viewLaunch() {
   document.title = "Launch a collection — null_";
   $("view").innerHTML = `
@@ -460,7 +511,7 @@ async function viewLaunch() {
       </section>
     </div>`;
   const seed = ethers.hexlify(ethers.randomBytes(32));
-  try { if (!SETTINGS) { const [launchFee, mintFeeBps, lpBps, creatorFeeBps] = await Promise.all([factoryR.launchFee(), factoryR.mintFeeBps(), factoryR.lpBps(), factoryR.creatorFeeBps()]); SETTINGS = { launchFee, mintFeeBps: Number(mintFeeBps), lpBps: Number(lpBps), creatorFeeBps: Number(creatorFeeBps) }; } }
+  try { if (!SETTINGS) await loadSettings(); }
   catch (e) { $("fErr").textContent = "Couldn't read the launch settings: " + errMsg(e); return; }
   feeLine();
   const ids = ["fName", "fSym", "fNft", "fCoin", "fPrice", "fDur", "fMax"];
@@ -525,7 +576,7 @@ function preview(seed) {
     ["Pool opens with", `${plural(pool, "NFT")}' coins + ${fmtEth(poolEth)}`],
     ["Starting price", `1 ${esc(sym)} = ${fmtEth(coinPrice, 9)}`],
     ["You get if it sells out", `${fmtEth(creator)}`],
-    ["Trading fee", `1% per trade, ${SETTINGS.creatorFeeBps / 100}% of it to you`],
+    ["Trading fee", `${pct(SETTINGS.poolFee / 10000)}% per trade: ${pct((SETTINGS.poolFee / 10000) * SETTINGS.creatorFeeBps / 10000)}% to you`],
   ].map(([k, v]) => `<div class="kv"><span class="mut">${k}</span><b>${v}</b></div>`).join("") +
   `<div class="tiny mut" style="margin-top:10px">If it doesn't sell out, the mint closes when the timer ends and the pool opens with what was minted. ${SETTINGS.mintFeeBps / 100}% of the mint goes to null_.</div>`;
 }
@@ -549,10 +600,10 @@ async function doLaunch() {
 }
 
 // ---------------------------------------------------------------- collection
-const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { eth: 0n, coin: 0n }, price: null, pending: null, nftSell: null, poolCoins: null, buyN: 1 };
+const S = { addr: null, info: null, my: [], sel: new Set(), side: "buy", bal: { eth: 0n, coin: 0n }, price: null, pending: null, nftSell: null, poolCoins: null, buyN: 1, creatorBps: null };
 async function viewCollection(addr) {
   addr = ethers.getAddress(addr);
-  if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null, nftSell: null, poolCoins: null, buyN: 1 });
+  if (S.addr !== addr) Object.assign(S, { addr, info: null, my: [], sel: new Set(), side: "buy", price: null, pending: null, nftSell: null, poolCoins: null, buyN: 1, creatorBps: null });
   $("view").innerHTML = `<a class="back" href="#">← All collections</a><div id="colBody"><div class="card empty">Loading…</div></div>`;
   await refresh();
   timer = setInterval(() => refresh(true), 15000);
@@ -563,6 +614,12 @@ async function refresh(quiet) {
     [S.info] = await Promise.all([col.info(), syncClock()]);
   } catch (e) { if (!quiet) $("colBody").innerHTML = `<div class="card empty">Couldn't load this collection. ${esc(errMsg(e))}</div>`; return; }
   const c = S.info;
+  if (!COINFEE.has(c.coin) || S.creatorBps == null) {
+    try {
+      const [fee, cb] = await Promise.all([factoryR.feeOf(c.coin), factoryR.creatorFeeBpsOf(S.addr)]);
+      COINFEE.set(c.coin, Number(fee)); S.creatorBps = Number(cb);
+    } catch {}
+  }
   const tasks = [];
   if (account) {
     tasks.push(rp.getBalance(account).then((v) => (S.bal.eth = v)));
@@ -728,7 +785,7 @@ async function buyNfts() {
 function tradePanel() {
   const c = S.info;
   return `<div class="card">
-    <div class="row between"><h2>Trade $${esc(c.symbol)}</h2><span class="mut tiny">Uniswap v4 · 1% fee</span></div>
+    <div class="row between"><h2>Trade $${esc(c.symbol)}</h2><span class="mut tiny">Uniswap v4 · ${pct((COINFEE.get(c.coin) ?? 30000) / 10000)}% fee</span></div>
     <div class="seg" style="margin-top:10px"><button id="sBuy" class="${S.side === "buy" ? "on" : ""}">Buy</button><button id="sSell" class="${S.side === "sell" ? "on" : ""}">Sell</button></div>
     <label for="amt">${S.side === "buy" ? "You pay (ETH)" : `You sell (${esc(c.symbol)})`}</label>
     <input id="amt" inputmode="decimal" placeholder="0.0">
@@ -759,12 +816,16 @@ function convertPanel() {
     <div class="err" id="convErr"></div>
   </div>`;
 }
+function feeSplitText() {
+  const fee = (COINFEE.get(S.info.coin) ?? 30000) / 10000, cb = S.creatorBps ?? 3333;
+  return `${pct((fee * cb) / 10000)}% to the creator, ${pct(fee - (fee * cb) / 10000)}% to null_`;
+}
 function feesPanel() {
   const c = S.info, p = S.pending;
   if (!p) return "";
   const has = p.eth > 0n || p.coins > 0n;
   return `<div class="card">
-    <div class="row between"><h2>Trading fees</h2><span class="mut tiny">half to the creator</span></div>
+    <div class="row between"><h2>Trading fees</h2><span class="mut tiny">${feeSplitText()}</span></div>
     <div class="small" style="margin-top:6px">${has ? `Waiting to be paid out: <b class="mono">${fmtEth(p.eth, 8)}</b> + <b class="mono">${fmtUnits(p.coins)} ${esc(c.symbol)}</b>` : "Nothing to pay out yet."}</div>
     <button class="ghost wide sm" id="feesBtn" style="margin-top:10px" ${has ? "" : "disabled"}>Pay out fees</button>
     <div class="err" id="feesErr"></div>

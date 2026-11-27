@@ -5,7 +5,7 @@
 // env (optional):
 //   NFT_OWNER          owner of the factory (settings)          default: the deployer
 //   NFT_FEE_RECIPIENT  receives launch, mint and trading fees    default: NFT_OWNER
-//   NFT_LAUNCH_FEE     launch fee in ETH                         default: 0.0001
+//   NFT_LAUNCH_FEE     launch fee in ETH                         default: 0.0015 (about $3)
 //   NFT_CONFIG_OUT     where to write the page config            default: frontend/nft-config.js
 const hre = require("hardhat");
 const fs = require("fs");
@@ -34,7 +34,7 @@ async function main() {
   const signer = new ethers.NonceManager(deployer);
   const owner = process.env.NFT_OWNER || deployer.address;
   const feeRecipient = process.env.NFT_FEE_RECIPIENT || owner;
-  const launchFee = ethers.parseEther(process.env.NFT_LAUNCH_FEE || "0.0001");
+  const launchFee = ethers.parseEther(process.env.NFT_LAUNCH_FEE || "0.0015");
   if (!ethers.isAddress(owner) || !ethers.isAddress(feeRecipient)) throw new Error("NFT_OWNER / NFT_FEE_RECIPIENT must be addresses");
   for (const [k, a] of Object.entries(v4)) {
     if (k.match(/^(poolManager|universalRouter|stateView|quoter|permit2)$/) && (await ethers.provider.getCode(a)) === "0x") throw new Error(`${k} has no code at ${a}`);
@@ -62,7 +62,7 @@ async function main() {
     owner,
     feeRecipient,
     launchFee: launchFee.toString(),
-    settings: { mintFeeBps: Number(await factory.mintFeeBps()), lpBps: Number(await factory.lpBps()), creatorFeeBps: Number(await factory.creatorFeeBps()), poolFee: 10000, tickSpacing: 200 },
+    settings: { mintFeeBps: Number(await factory.mintFeeBps()), lpBps: Number(await factory.lpBps()), creatorFeeBps: Number(await factory.creatorFeeBps()), poolFee: Number(await factory.poolFee()), tickSpacing: 200 },
     v4,
     deployedAt: new Date().toISOString(),
   };

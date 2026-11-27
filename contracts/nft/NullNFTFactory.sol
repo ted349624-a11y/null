@@ -25,9 +25,10 @@ import {NullNFTCoin} from "./NullNFTCoin.sol";
 
 /// @title NullNFTFactory
 /// @notice Launches null_ NFT collections (each with its own coin) and is the permanent owner of their
-///         Uniswap v4 liquidity: a full-range ETH/coin position in a plain 1% pool (no hook), opened at the
+///         Uniswap v4 liquidity: a full-range ETH/coin position in a plain pool (no hook), opened at the
 ///         mint price when the mint ends. The position can never be removed; its trading fees are split
-///         between the collection's creator and the platform.
+///         between the collection's creator and the platform. The pool fee (3% by default: 2% platform,
+///         1% creator) is fixed per collection at launch.
 contract NullNFTFactory is Ownable, IUnlockCallback, ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
     using StateLibrary for IPoolManager;
@@ -42,7 +43,6 @@ contract NullNFTFactory is Ownable, IUnlockCallback, ReentrancyGuardTransient {
         uint32 maxPerWallet; // 0 = no limit
     }
 
-    uint24 public constant POOL_FEE = 10_000; // 1%
     int24 public constant TICK_SPACING = 200;
     int24 public constant TICK_LOWER = -887_200; // full range for spacing 200
     int24 public constant TICK_UPPER = 887_200;
@@ -57,12 +57,14 @@ contract NullNFTFactory is Ownable, IUnlockCallback, ReentrancyGuardTransient {
     uint256 public launchFee;
     uint16 public mintFeeBps = 500; // platform's share of mint revenue
     uint16 public lpBps = 2_500; // pool share: NFTs (and ETH) worth 25% of the mint go into the pool
-    uint16 public creatorFeeBps = 5_000; // creator's share of the pool's trading fees
+    uint16 public creatorFeeBps = 3_333; // creator's share of the pool's trading fees (1 of the 3%)
+    uint24 public poolFee = 30_000; // pool (LP) fee in hundredths of a bip: 30_000 = 3% of every trade
 
     address[] public collections;
     mapping(address => bool) public isCollection;
     mapping(address => address) public coinOf;
     mapping(address => uint16) public creatorFeeBpsOf; // fixed per collection at launch
+    mapping(address => uint24) public feeOf; // coin => its pool's fee, fixed at launch
     mapping(address => uint128) public liquidityOf; // our locked liquidity, per collection
     mapping(address => uint256) public owed; // payouts that could not be pushed
 
@@ -72,7 +74,7 @@ contract NullNFTFactory is Ownable, IUnlockCallback, ReentrancyGuardTransient {
     );
     event PoolOpened(address indexed collection, PoolId indexed poolId, uint128 liquidity, uint256 eth, uint256 coins);
     event FeesCollected(address indexed collection, uint256 eth, uint256 coins, uint256 creatorEth, uint256 creatorCoins);
-    event SettingsChanged(address feeRecipient, uint256 launchFee, uint16 mintFeeBps, uint16 lpBps, uint16 creatorFeeBps);
+    event SettingsChanged(address feeRecipient, uint256 launchFee, uint16 mintFeeBps, uint16 lpBps, uint16 creatorFeeBps, uint24 poolFee);
 
     error WrongLaunchFee();
     error BadText();
@@ -135,6 +137,7 @@ contract NullNFTFactory is Ownable, IUnlockCallback, ReentrancyGuardTransient {
         isCollection[collection] = true;
         coinOf[collection] = coin;
         creatorFeeBpsOf[collection] = creatorFeeBps;
+        feeOf[coin] = poolFee;
         _pay(feeRecipient, msg.value);
         emit CollectionCreated(collection, coin, msg.sender, p.name, p.symbol, p.nftSupply, p.coinSupply, p.mintPrice, mintEnd);
     }
@@ -151,17 +154,17 @@ contract NullNFTFactory is Ownable, IUnlockCallback, ReentrancyGuardTransient {
 
     // ------------------------------------------------------------------ pool
 
-    function poolKey(address coin) public pure returns (PoolKey memory) {
+    function poolKey(address coin) public view returns (PoolKey memory) {
         return PoolKey({
             currency0: Currency.wrap(address(0)), // native ETH always sorts first
             currency1: Currency.wrap(coin),
-            fee: POOL_FEE,
+            fee: feeOf[coin],
             tickSpacing: TICK_SPACING,
             hooks: IHooks(address(0))
         });
     }
 
-    function poolId(address coin) public pure returns (PoolId) {
+    function poolId(address coin) public view returns (PoolId) {
         return PoolId.wrap(keccak256(abi.encode(poolKey(coin))));
     }
 
@@ -325,14 +328,22 @@ contract NullNFTFactory is Ownable, IUnlockCallback, ReentrancyGuardTransient {
     }
 
     /// @notice Applies to collections launched after the change; feeRecipient applies everywhere.
-    function setSettings(address feeRecipient_, uint256 launchFee_, uint16 mintFeeBps_, uint16 lpBps_, uint16 creatorFeeBps_) external onlyOwner {
-        if (feeRecipient_ == address(0) || mintFeeBps_ > 2_000 || lpBps_ < 500 || lpBps_ > 5_000 || creatorFeeBps_ > 10_000) revert BadSetting();
+    ///         poolFee is in hundredths of a bip (10_000 = 1%), between 0.01% and 10%.
+    function setSettings(address feeRecipient_, uint256 launchFee_, uint16 mintFeeBps_, uint16 lpBps_, uint16 creatorFeeBps_, uint24 poolFee_)
+        external
+        onlyOwner
+    {
+        if (
+            feeRecipient_ == address(0) || mintFeeBps_ > 2_000 || lpBps_ < 500 || lpBps_ > 5_000 || creatorFeeBps_ > 10_000
+                || poolFee_ < 100 || poolFee_ > 100_000
+        ) revert BadSetting();
         feeRecipient = feeRecipient_;
         launchFee = launchFee_;
         mintFeeBps = mintFeeBps_;
         lpBps = lpBps_;
         creatorFeeBps = creatorFeeBps_;
-        emit SettingsChanged(feeRecipient_, launchFee_, mintFeeBps_, lpBps_, creatorFeeBps_);
+        poolFee = poolFee_;
+        emit SettingsChanged(feeRecipient_, launchFee_, mintFeeBps_, lpBps_, creatorFeeBps_, poolFee_);
     }
 
     // ------------------------------------------------------------------ views

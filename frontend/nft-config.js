@@ -4,8 +4,8 @@ window.NULL_NFT = {
   "chainName": "Base Sepolia",
   "rpcUrl": "https://sepolia.base.org",
   "explorer": "https://sepolia.basescan.org",
-  "factory": "0x548CAaAC510dEfaBa30D2A0AeFee59846a70376E",
-  "deployBlock": 64272500,
+  "factory": "0x22aF309e7DD233F6b8aA06f02D2b7146210D62E6",
+  "deployBlock": 64290624,
   "v4": {
     "poolManager": "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408",
     "universalRouter": "0x492E6456D9528771018DeB9E87ef7750EF184104",

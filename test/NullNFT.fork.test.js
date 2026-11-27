@@ -27,9 +27,11 @@ fork("null_ NFT collections (Base Sepolia fork, real Uniswap v4)", function () {
     const ev = rc.logs.map((l) => { try { return factory.interface.parseLog(l); } catch { return null; } }).find((x) => x && x.name === "CollectionCreated");
     const col = await ethers.getContractAt("NullNFTCollection", ev.args.collection);
     const coin = await ethers.getContractAt("NullNFTCoin", ev.args.coin);
+    FEES[ev.args.coin] = Number(await factory.feeOf(ev.args.coin));
     return { col, coin, p };
   }
-  const keyOf = (coin) => [ethers.ZeroAddress, coin, 10000, 200, ethers.ZeroAddress];
+  const FEES = {}; // coin -> pool fee, read from the factory
+  const keyOf = (coin) => [ethers.ZeroAddress, coin, FEES[coin] ?? 30000, 200, ethers.ZeroAddress];
   async function price(coinAddr) {
     const [sqrtP] = await stateView.getSlot0(await factory.poolId(coinAddr));
     return Number((sqrtP * sqrtP * 10n ** 9n) >> 192n) / 1e9; // coins per ETH
@@ -150,7 +152,7 @@ fork("null_ NFT collections (Base Sepolia fork, real Uniswap v4)", function () {
     await backed(C.col, C.coin);
   });
 
-  it("splits the pool's trading fees 50/50 between creator and platform", async () => {
+  it("charges 3% on trades and splits it: 1% creator, 2% platform", async () => {
     const col = await C.col.getAddress();
     const cE = await ethers.provider.getBalance(creator.address);
     const fE = await ethers.provider.getBalance(fees.address);
@@ -161,12 +163,14 @@ fork("null_ NFT collections (Base Sepolia fork, real Uniswap v4)", function () {
     const { eth, coins, creatorEth, creatorCoins } = ev.args;
     expect(eth).to.be.gt(0n);
     expect(coins).to.be.gt(0n);
-    expect(creatorEth).to.equal(eth / 2n);
+    expect(FEES[await C.coin.getAddress()]).to.equal(30000);
+    expect(creatorEth).to.equal((eth * 3333n) / 10000n);
+    expect(creatorCoins).to.equal((coins * 3333n) / 10000n);
     expect((await ethers.provider.getBalance(creator.address)) - cE).to.equal(creatorEth);
     expect((await ethers.provider.getBalance(fees.address)) - fE).to.equal(eth - creatorEth);
     expect((await C.coin.balanceOf(creator.address)) - cC).to.equal(creatorCoins);
     await backed(C.col, C.coin);
-    console.log(`      fees: ${ethers.formatEther(eth)} ETH + ${ethers.formatEther(coins)} NCAT (half each)`);
+    console.log(`      fees: ${ethers.formatEther(eth)} ETH + ${ethers.formatEther(coins)} NCAT (a third to the creator)`);
   });
 
   it("draws the NFT on-chain (valid JSON + SVG)", async () => {
@@ -217,6 +221,20 @@ fork("null_ NFT collections (Base Sepolia fork, real Uniswap v4)", function () {
     expect(p).to.be.closeTo(100, 0.01);
     expect(await factory.liquidityOf(await M.col.getAddress())).to.be.gt(0n);
     await backed(M.col, M.coin);
+  });
+
+  it("lets only the owner change settings; a new pool fee applies to new collections only", async () => {
+    await expect(factory.connect(creator).setSettings(fees.address, LAUNCH_FEE, 500, 2500, 3333, 10000)).to.be.revertedWithCustomError(factory, "OwnableUnauthorizedAccount");
+    await expect(factory.connect(owner).setSettings(fees.address, LAUNCH_FEE, 500, 2500, 3333, 200000)).to.be.revertedWithCustomError(factory, "BadSetting");
+    await (await factory.connect(owner).setSettings(fees.address, LAUNCH_FEE, 500, 2500, 5000, 10000)).wait();
+    const N = await launch({ name: "One Percent", symbol: "ONEP", nftSupply: 10, coinSupply: 10, mintPrice: E("0.01") });
+    expect(await factory.feeOf(await N.coin.getAddress())).to.equal(10000n);
+    expect(await factory.feeOf(await C.coin.getAddress())).to.equal(30000n); // the earlier collection keeps 3%
+    await (await N.col.connect(a).mint(8, { value: E("0.08") })).wait();
+    expect(await price(await N.coin.getAddress())).to.be.closeTo(100, 0.01);
+    await swap(b, await N.coin.getAddress(), true, E("0.005"));
+    expect(await N.coin.balanceOf(b.address)).to.be.gt(0n);
+    await (await factory.connect(owner).setSettings(fees.address, LAUNCH_FEE, 500, 2500, 3333, 30000)).wait(); // back to defaults
   });
 
   it("cannot be blocked: even a huge ETH wall in the way does not stop the mint from closing", async () => {
